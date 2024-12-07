@@ -106,7 +106,7 @@ def collision_tester(samples: List[int], domain_size: int, epsilon: float) -> bo
     
     Args:
         samples: Samples to test for uniformity
-        domain_size: Size of expanded domain (6n)
+        domain_size: Size of domain
         epsilon: Proximity parameter
     
     Returns:
@@ -120,10 +120,15 @@ def collision_tester(samples: List[int], domain_size: int, epsilon: float) -> bo
     frequency = Counter(samples)
     collision_count = sum(f * (f - 1) for f in frequency.values())
     collision_stat = collision_count / (sample_count * (sample_count - 1))
-
-    # Accept if collision statistic is less than or equal to (1 + epsilon^2) / domain_size
-    return collision_stat <= (1 + epsilon**2) / domain_size
-    #return abs(collision_stat - uniform_prob) <= epsilon
+    
+    # Threshold from Corollary 11.2
+    threshold = (1 + epsilon**2) / domain_size
+    
+    print(f"Collision statistic: {collision_stat:.6f}")
+    print(f"Uniform expectation: {1/domain_size:.6f}")
+    print(f"Threshold (1+ε²)/n: {threshold:.6f}")
+    
+    return collision_stat <= threshold
 
 def goldreich_test(D: Dict[str, float], X_samples: List[int], epsilon: float) -> bool:
     """
