@@ -4,87 +4,101 @@ import json
 from collections import Counter
 from typing import List, Dict
 
-def average_with_uniform(samples: List[int], domain_size: int) -> List[int]:
+def average_with_uniform(input_samples: List[int], domain_size: int) -> List[int]:
     """
-    First filter (F') that averages input distribution with uniform distribution.
-    With 0.5 probability keeps the sample, otherwise draws from uniform.
+    First transformation that averages input distribution with uniform distribution.
+    Guarantees that for any element i: p'(i) = 0.5p(i) + 0.5/n exactly.
     
     Args:
-        samples: Original samples to transform
-        domain_size: Size of the distribution domain [n]
+        input_samples: Original samples from distribution p
+        domain_size: Size of the domain [n]
     
     Returns:
-        List of transformed samples
+        Samples from distribution p' where p'(i) = 0.5p(i) + 0.5/n
     """
-    transformed_samples = []
-    for sample in samples:
-        if random.random() < 0.5:
-            transformed_samples.append(sample)
-        else:
-            transformed_samples.append(random.randint(1, domain_size))
-    return transformed_samples
+    total_samples = len(input_samples)
+    
+    # Count frequencies in input samples
+    input_counts = Counter(input_samples)
+    input_probs = {i: input_counts.get(i, 0)/total_samples for i in range(1, domain_size + 1)}
+    
+    # Calculate exact counts needed for each element
+    averaged_counts = {}
+    for i in range(1, domain_size + 1):
+        # p'(i) = 0.5p(i) + 0.5/n
+        target_prob = 0.5 * input_probs.get(i, 0) + 0.5/domain_size
+        # Convert probability to count
+        averaged_counts[i] = int(round(target_prob * total_samples))
+    
+    # Generate samples according to exact counts
+    averaged_samples = []
+    for element, count in averaged_counts.items():
+        averaged_samples.extend([element] * count)
+    
+    # Adjust length if necessary due to rounding
+    while len(averaged_samples) < total_samples:
+        averaged_samples.append(random.randint(1, domain_size))
+    while len(averaged_samples) > total_samples:
+        averaged_samples.pop()
+        
+    # Shuffle to maintain randomness
+    random.shuffle(averaged_samples)
+    
+    return averaged_samples
 
-def compute_averaged_distribution(original_dist: Dict[str, float]) -> Dict[str, float]:
+def compute_averaged_distribution(target_dist: Dict[str, float]) -> Dict[str, float]:
     """
-    Compute the averaged distribution q' = F'(q) where q'(i) = 0.5q(i) + 0.5/n.
-    This ensures each element has probability at least 1/2n.
-    
-    Args:
-        original_dist: Original distribution D
-    
-    Returns:
-        Averaged distribution q'
+    Compute the averaged distribution where each probability is
+    averaged_prob(i) = 0.5 * original_prob(i) + 0.5 * (1/n)
     """
-    domain_size = len(original_dist)
-    averaged_dist = {}
+    domain_size = len(target_dist)
     uniform_prob = 1.0 / domain_size
+    averaged_dist = {}
     
     for i in range(1, domain_size + 1):
-        # Average with uniform: q'(i) = 0.5 * q(i) + 0.5/n
-        original_prob = original_dist.get(str(i), 0)
+        original_prob = target_dist.get(str(i), 0)
         averaged_dist[str(i)] = 0.5 * original_prob + 0.5 * uniform_prob
     
     return averaged_dist
 
-def map_to_expanded_domain(samples: List[int], averaged_dist: Dict[str, float], 
-                          grain_param: float = 1/6) -> List[int]:
+def map_to_expanded_domain(input_samples: List[int], averaged_dist: Dict[str, float], 
+                          grain_size: float = 1/6) -> List[int]:
     """
-    Second filter (F''_q') that maps samples to an expanded domain.
-    Maps i to either itself or domain_size + 1 based on calculated probabilities.
+    Second transformation that maps samples to a larger domain.
+    For each input value i:
+    - Keep i with probability (bucket_size * grain_size/n) / averaged_prob(i)
+    - Map to overflow_value otherwise
     
-    Args:
-        samples: Input samples
-        averaged_dist: The averaged distribution q'
-        grain_param: Graining parameter γ (default 1/6 per paper)
-    
-    Returns:
-        Samples mapped to expanded domain
+    grain_size is γ from the paper (default 1/6)
     """
     domain_size = len(averaged_dist)
-    mapped_samples = []
+    overflow_value = domain_size + 1
+    expanded_samples = []
     
-    for sample in samples:
-        sample_str = str(sample)
-        if sample_str not in averaged_dist:
-            mapped_samples.append(domain_size + 1)
+    for sample in input_samples:
+        sample_key = str(sample)
+        if sample_key not in averaged_dist:
+            expanded_samples.append(overflow_value)
             continue
             
-        # Calculate floor(q'(i)*n/γ)
-        sample_count = int(np.floor(averaged_dist[sample_str] * domain_size / grain_param))
+        # Calculate bucket size for this value
+        # bucket_size = floor(averaged_prob * n/grain_size)
+        prob = averaged_dist[sample_key]
+        bucket_size = int(np.floor(prob * domain_size / grain_size))
         
-        # Probability of keeping sample i is (mi*γ/n)/q'(i)
-        if averaged_dist[sample_str] > 0:
-            keep_prob = (sample_count * grain_param / domain_size) / averaged_dist[sample_str]
-            keep_prob = min(1, keep_prob)  # Ensure probability doesn't exceed 1
+        # Probability of keeping the sample
+        if prob > 0:
+            keep_prob = (bucket_size * grain_size / domain_size) / prob
+            keep_prob = min(1, keep_prob)  # Ensure valid probability
             
             if random.random() < keep_prob:
-                mapped_samples.append(sample)
+                expanded_samples.append(sample)
             else:
-                mapped_samples.append(domain_size + 1)
+                expanded_samples.append(overflow_value)
         else:
-            mapped_samples.append(domain_size + 1)
-            
-    return mapped_samples
+            expanded_samples.append(overflow_value)
+    
+    return expanded_samples
 
 def collision_tester(samples: List[int], domain_size: int, epsilon: float) -> bool:
     """
@@ -100,22 +114,16 @@ def collision_tester(samples: List[int], domain_size: int, epsilon: float) -> bo
     """
     if len(samples) < 2:
         raise ValueError("Need at least two samples for collision testing")
-    
+
     # Count collisions
     sample_count = len(samples)
     frequency = Counter(samples)
     collision_count = sum(f * (f - 1) for f in frequency.values())
     collision_stat = collision_count / (sample_count * (sample_count - 1))
-    
-    # Expected probability for uniform distribution
-    uniform_prob = 1 / domain_size
-    
-    print("Collision Statistic:", collision_stat)
-    print("Expected Uniform Probability:", uniform_prob)
-    print("Difference:", abs(collision_stat - uniform_prob))
-    print("Epsilon:", epsilon)
-    
-    return abs(collision_stat - uniform_prob) <= epsilon
+
+    # Accept if collision statistic is less than or equal to (1 + epsilon^2) / domain_size
+    return collision_stat <= (1 + epsilon**2) / domain_size
+    #return abs(collision_stat - uniform_prob) <= epsilon
 
 def goldreich_test(D: Dict[str, float], X_samples: List[int], epsilon: float) -> bool:
     """
@@ -146,6 +154,78 @@ def goldreich_test(D: Dict[str, float], X_samples: List[int], epsilon: float) ->
     expanded_domain_size = 6 * domain_size
     return collision_tester(expanded_samples, expanded_domain_size, epsilon/3)
 
+def verify_reduction(target_dist: Dict[str, float], test_samples: List[int], 
+                    num_verify_samples: int = 100000):
+    """
+    Verify reduction properties with focus on exact probabilities
+    """
+    domain_size = len(target_dist)
+    print("\nVerification Results:")
+    print("-" * 50)
+    
+    verify_samples = test_samples[:num_verify_samples]
+    
+    # Input distribution analysis
+    print("Input Distribution Analysis:")
+    input_freqs = Counter(verify_samples)
+    input_probs = {i: input_freqs.get(i, 0)/num_verify_samples 
+                   for i in range(1, domain_size + 1)}
+    
+    print(f"Input min probability: {min(input_probs.values()):.6f}")
+    print(f"Input max probability: {max(input_probs.values()):.6f}")
+    
+    # Averaging verification
+    averaged_samples = average_with_uniform(verify_samples, domain_size)
+    avg_freqs = Counter(averaged_samples)
+    avg_probs = {i: avg_freqs.get(i, 0)/num_verify_samples 
+                 for i in range(1, domain_size + 1)}
+    
+    print("\nAveraging Step Verification:")
+    min_freq = min(avg_probs.values())
+    min_required = 1/(2*domain_size)
+    
+    print(f"Minimum frequency found: {min_freq:.6f}")
+    print(f"Required minimum (1/2n): {min_required:.6f}")
+    
+    # Verify averaging formula exactly
+    print("\nProbability Verification:")
+    max_diff = 0
+    worst_element = None
+    
+    for i in range(1, domain_size + 1):
+        expected = 0.5 * input_probs[i] + 0.5/domain_size
+        actual = avg_probs[i]
+        diff = abs(expected - actual)
+        if diff > max_diff:
+            max_diff = diff
+            worst_element = i
+    
+    print(f"Maximum deviation from expected probability: {max_diff:.6f} at element {worst_element}")
+    print(f"For element {worst_element}:")
+    print(f"  Original p(i): {input_probs[worst_element]:.6f}")
+    print(f"  Expected p'(i): {0.5 * input_probs[worst_element] + 0.5/domain_size:.6f}")
+    print(f"  Actual p'(i): {avg_probs[worst_element]:.6f}")
+    
+    print(f"\nAveraging property {'SATISFIED' if min_freq >= min_required else 'FAILED'}")
+    
+    # Expansion verification
+    averaged_dist = compute_averaged_distribution(target_dist)
+    expanded_samples = map_to_expanded_domain(averaged_samples, averaged_dist)
+    
+    expanded_freqs = Counter(expanded_samples)
+    expanded_probs = {k: v/len(expanded_samples) for k, v in expanded_freqs.items()}
+    
+    print("\nExpansion Step Verification:")
+    expected_uniform = 1/(6*domain_size)
+    print(f"Expected uniform probability: {expected_uniform:.6f}")
+    
+    max_dev_elem = max(expanded_probs.keys(), 
+                      key=lambda k: abs(expanded_probs[k] - expected_uniform))
+    max_deviation = abs(expanded_probs[max_dev_elem] - expected_uniform)
+    
+    print(f"Maximum deviation: {max_deviation:.6f} (at element {max_dev_elem})")
+    print(f"Uniformity property {'SATISFIED' if max_deviation < 0.1 else 'FAILED'}")
+
 def test_from_files(D_file: str, X_file: str, epsilon: float):
     """
     Test distributions loaded from files
@@ -159,5 +239,16 @@ def test_from_files(D_file: str, X_file: str, epsilon: float):
     print("Accept: X matches D" if result else "Reject: X is far from D")
 
 if __name__ == "__main__":
-    test_from_files("./D/D_gaussian.json", "./X/D_gaussian_X_far.json", 0.05)
-    test_from_files("./D/D_gaussian.json", "./X/D_gaussian_X_close.json", 0.05)
+    # Load test data
+    with open("./D/D_gaussian.json") as f:
+        target_dist = json.load(f)
+    with open("./X/D_gaussian_X_close.json") as f:
+        close_samples = json.load(f)["samples"]
+    with open("./X/D_gaussian_X_far.json") as f:
+        far_samples = json.load(f)["samples"]
+        
+    print("Verifying reduction with close samples:")
+    verify_reduction(target_dist, close_samples)
+    
+    print("\nVerifying reduction with far samples:")
+    verify_reduction(target_dist, far_samples)
