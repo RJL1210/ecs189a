@@ -1,164 +1,163 @@
 import numpy as np
 import random
 import json
+from collections import Counter
+from typing import List, Dict
 
-def grain_distribution(D, m):
-
-    total = sum(D.values())
-    assert np.isclose(total, 1), "Probabilities in D do not sum to 1"
-
-
-    # grain each probability to nearest multiple of 1/m
-    grained_D = {}
-    for key, value in D.items():
-        grained_value = round(value * m) / m
-        grained_D[key] = grained_value
-
-    # normalize grained distribution to ensure sum is 1
-    normalization_factor = sum(grained_D.values())
-    for key in grained_D:
-        grained_D[key] /= normalization_factor
-
-    return grained_D
-
-def expand_domain(D, m, domain_size):
-
-    if isinstance(D, dict):
-        D = np.array(list(D.values()))
-    elif not isinstance(D, np.ndarray):
-        raise TypeError("D must be a NumPy array or dictionary")
+def average_with_uniform(samples: List[int], domain_size: int) -> List[int]:
+    """
+    First filter (F') that averages input distribution with uniform distribution.
+    With 0.5 probability keeps the sample, otherwise draws from uniform.
     
-
-    # check if sum is 1
-    assert np.isclose(D.sum(), 1), "Probabilities do not sum to 1"
-
-    # convert probabilities to counts based on m
-    counts = (D * m).astype(int)
-    expanded_domain = {}
-    index = 1
-
-    for i, count in enumerate(counts):  
-        # map each element to range in [6n]
-        expanded_domain[str(i + 1)] = list(range(index, index + count))
-        index += count
-
-    if index - 1 > 6 * domain_size:
-        raise ValueError("Mapping exceeds domain size [6n], check your Distribution")
+    Args:
+        samples: Original samples to transform
+        domain_size: Size of the distribution domain [n]
     
-    return expanded_domain
-
-def map_samples(X, expanded_domain):
-    # transform 
-
+    Returns:
+        List of transformed samples
+    """
     transformed_samples = []
-
-    for x in X:
-        if str(x) in expanded_domain:
-            # choose mapped index from expanded at random
-            transformed_samples.append(random.choice(expanded_domain[str(x)]))
+    for sample in samples:
+        if random.random() < 0.5:
+            transformed_samples.append(sample)
         else:
-            raise ValueError(f"Sample {x} not found in original domain of D")
-
+            transformed_samples.append(random.randint(1, domain_size))
     return transformed_samples
 
-def collision_tester(samples, domain_size, epsilon):
+def compute_averaged_distribution(original_dist: Dict[str, float]) -> Dict[str, float]:
     """
-    collision tester for uniformity using epsilon as the threshold.
-
-    args:
-        samples (list or numpy.ndarray): the samples drawn from the distribution.
-        domain_size (int): the size of the domain (e.g., 6n for goldreich).
-        epsilon (float): distance threshold for testing.
-
-    returns:
-        bool: true if the samples are uniform, false otherwise.
+    Compute the averaged distribution q' = F'(q) where q'(i) = 0.5q(i) + 0.5/n.
+    This ensures each element has probability at least 1/2n.
+    
+    Args:
+        original_dist: Original distribution D
+    
+    Returns:
+        Averaged distribution q'
     """
-    # number of samples
-    s = len(samples)
-    if s < 2:
-        raise ValueError("need at least two samples for collision testing.")
+    domain_size = len(original_dist)
+    averaged_dist = {}
+    uniform_prob = 1.0 / domain_size
+    
+    for i in range(1, domain_size + 1):
+        # Average with uniform: q'(i) = 0.5 * q(i) + 0.5/n
+        original_prob = original_dist.get(str(i), 0)
+        averaged_dist[str(i)] = 0.5 * original_prob + 0.5 * uniform_prob
+    
+    return averaged_dist
 
-    # count the frequency of each sample
-    from collections import Counter
+def map_to_expanded_domain(samples: List[int], averaged_dist: Dict[str, float], 
+                          grain_param: float = 1/6) -> List[int]:
+    """
+    Second filter (F''_q') that maps samples to an expanded domain.
+    Maps i to either itself or domain_size + 1 based on calculated probabilities.
+    
+    Args:
+        samples: Input samples
+        averaged_dist: The averaged distribution q'
+        grain_param: Graining parameter γ (default 1/6 per paper)
+    
+    Returns:
+        Samples mapped to expanded domain
+    """
+    domain_size = len(averaged_dist)
+    mapped_samples = []
+    
+    for sample in samples:
+        sample_str = str(sample)
+        if sample_str not in averaged_dist:
+            mapped_samples.append(domain_size + 1)
+            continue
+            
+        # Calculate floor(q'(i)*n/γ)
+        sample_count = int(np.floor(averaged_dist[sample_str] * domain_size / grain_param))
+        
+        # Probability of keeping sample i is (mi*γ/n)/q'(i)
+        if averaged_dist[sample_str] > 0:
+            keep_prob = (sample_count * grain_param / domain_size) / averaged_dist[sample_str]
+            keep_prob = min(1, keep_prob)  # Ensure probability doesn't exceed 1
+            
+            if random.random() < keep_prob:
+                mapped_samples.append(sample)
+            else:
+                mapped_samples.append(domain_size + 1)
+        else:
+            mapped_samples.append(domain_size + 1)
+            
+    return mapped_samples
+
+def collision_tester(samples: List[int], domain_size: int, epsilon: float) -> bool:
+    """
+    Test uniformity using collision statistics.
+    
+    Args:
+        samples: Samples to test for uniformity
+        domain_size: Size of expanded domain (6n)
+        epsilon: Proximity parameter
+    
+    Returns:
+        True if samples appear uniform, False otherwise
+    """
+    if len(samples) < 2:
+        raise ValueError("Need at least two samples for collision testing")
+    
+    # Count collisions
+    sample_count = len(samples)
     frequency = Counter(samples)
-
-    # compute the collision statistic
-    collision_stat = sum(f * (f - 1) for f in frequency.values()) / (s * (s - 1))
-
-    # compute the expected uniform collision probability
-    uniform_collision_prob = 1 / domain_size
-
+    collision_count = sum(f * (f - 1) for f in frequency.values())
+    collision_stat = collision_count / (sample_count * (sample_count - 1))
+    
+    # Expected probability for uniform distribution
+    uniform_prob = 1 / domain_size
+    
     print("Collision Statistic:", collision_stat)
-    print("Expected Uniform Probability:", uniform_collision_prob)
-    print("Difference:", abs(collision_stat - uniform_collision_prob))
-
-
-    # check if the collision statistic is within epsilon of the uniform probability
-    return abs(collision_stat - uniform_collision_prob) <= epsilon
-
-def calculate_samples(domain_size, epsilon, k=1):
+    print("Expected Uniform Probability:", uniform_prob)
+    print("Difference:", abs(collision_stat - uniform_prob))
+    print("Epsilon:", epsilon)
     
-    # calculate the number of samples needed based on epsilon and domain size.
+    return abs(collision_stat - uniform_prob) <= epsilon
 
-    if epsilon <= 0:
-        raise ValueError("epsilon must be greater than 0.")
+def goldreich_test(D: Dict[str, float], X_samples: List[int], epsilon: float) -> bool:
+    """
+    Main testing function implementing Algorithm 8 from Goldreich's paper.
+    Tests if distribution X is close to distribution D.
     
-    return int(np.ceil(k * (np.sqrt(domain_size) / epsilon**2)))
-
-def goldreich_file(D_file, X_file, m, epsilon):
+    Args:
+        D: Target distribution
+        X_samples: Samples from distribution to test
+        epsilon: Distance parameter
+    
+    Returns:
+        True if X appears to match D, False otherwise
     """
-    args:
-        D_file: path to json file for the fixed distribution D.
-        X_file: path to json file for the unknown distribution X.
-        m (int): graining parameter.
-        epsilon (float): distance threshold.
-    """
-    # load D and X
-    def json_parse(json_file):
-        with open(json_file) as f:
-            return json.load(f)
-
-    D_json = json_parse(D_file)
-    X_json = json_parse(X_file)
-
-    D = np.array(list(D_json.values()))  # convert D to numpy array
-    X_samples = X_json["samples"]  # extract samples from X json
-
-    # calculate domain size and expanded domain size
-    domain_size = len(D_json)
+    domain_size = len(D)
+    grain_param = 1/6  # As specified in paper
+    
+    # Step 1: Average with uniform distribution
+    averaged_samples = average_with_uniform(X_samples, domain_size)
+    
+    # Compute averaged distribution
+    averaged_dist = compute_averaged_distribution(D)
+    
+    # Step 2: Map to expanded domain
+    expanded_samples = map_to_expanded_domain(averaged_samples, averaged_dist, grain_param)
+    
+    # Test uniformity on expanded domain [6n]
     expanded_domain_size = 6 * domain_size
+    return collision_tester(expanded_samples, expanded_domain_size, epsilon/3)
 
-    # grain the distribution D
-    grained_D = grain_distribution(D_json, m)
-    print(f"Grained D: {grained_D}")
-
-    # expand domain for D
-    expanded_D = expand_domain(D, m, domain_size)
-
-    # map X samples to expanded domain
-    mapped_X = map_samples(X_samples, expanded_D)
-    print(f"Mapped X Samples: {mapped_X[:10]}")  # debug: print the first 10 mapped samples
-
-    # calculate the number of samples based on epsilon
-    samples_needed = calculate_samples(expanded_domain_size, epsilon)
-    # ensure enough samples are available
-    if len(X_samples) < samples_needed:
-        raise ValueError(f"not enough samples in X. required: {samples_needed}, provided: {len(X_samples)}")
-
-    # use the first `samples_needed` samples from mapped X
-    test_samples = mapped_X[:samples_needed]
-
-    # perform collision testing
-    is_uniform = collision_tester(test_samples, expanded_domain_size, epsilon)
-    if is_uniform:
-        print("accept: X matches D")
-    else:
-        print("reject: X is far from D")
-
-
+def test_from_files(D_file: str, X_file: str, epsilon: float):
+    """
+    Test distributions loaded from files
+    """
+    with open(D_file) as f:
+        D = json.load(f)
+    with open(X_file) as f:
+        X = json.load(f)
+    
+    result = goldreich_test(D, X["samples"], epsilon)
+    print("Accept: X matches D" if result else "Reject: X is far from D")
 
 if __name__ == "__main__":
-    goldreich_file("./non_grained_d.json", "./X_far.json", 10, 0.06)
-    goldreich_file("./non_grained_d.json", "./X_close.json", 10, 0.06)
-
-# 0.05 doesnt work with the non grained D, 0.05 works well with grained D
+    test_from_files("./D/D_gaussian.json", "./X/D_gaussian_X_far.json", 0.05)
+    test_from_files("./D/D_gaussian.json", "./X/D_gaussian_X_close.json", 0.05)
