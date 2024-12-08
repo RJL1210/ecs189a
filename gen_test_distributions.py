@@ -2,7 +2,7 @@ import numpy as np
 import json
 import os
 from typing import Dict, List
-from goldreich import test_distribution_files
+from goldreich import goldreich_test
 
 def generate_test_distributions(domain_size: int = 1000, sample_size: int = 100000):
     """
@@ -141,6 +141,18 @@ def generate_test_distributions(domain_size: int = 1000, sample_size: int = 1000
         with open(f"./X/D_{dist_name}_X_far.json", "w") as f:
             json.dump({"samples": far_samples.tolist()}, f)
 
+def test_from_files(D_file: str, X_file: str, epsilon: float):
+    """
+    Test distributions loaded from files
+    """
+    with open(D_file) as f:
+        D = json.load(f)
+    with open(X_file) as f:
+        X = json.load(f)
+    
+    result = goldreich_test(D, X["samples"], epsilon)
+    print("Accept: X matches D" if result else "Reject: X is far from D")
+
 
 def run_tests(epsilon: float = 0.05):
     """
@@ -153,14 +165,14 @@ def run_tests(epsilon: float = 0.05):
         print(f"\nTesting {dist_name} distribution:")
         
         print("Testing far distribution:")
-        far_result = test_distribution_files(f"./D/D_{dist_name}.json", 
+        far_result = test_from_files(f"./D/D_{dist_name}.json", 
                                    f"./X/D_{dist_name}_X_far.json", epsilon)
         if not far_result:  # Should reject
             successes += 1
         total += 1
             
         print("\nTesting close distribution:")
-        close_result = test_distribution_files(f"./D/D_{dist_name}.json", 
+        close_result = test_from_files(f"./D/D_{dist_name}.json", 
                                      f"./X/D_{dist_name}_X_close.json", epsilon)
         if close_result:  # Should accept
             successes += 1
