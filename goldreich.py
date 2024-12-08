@@ -3,6 +3,8 @@ import random
 import json
 from collections import Counter
 from typing import List, Dict
+import os
+import glob
 
 def average_with_uniform(input_samples: List[int], domain_size: int) -> List[int]:
     """
@@ -64,25 +66,25 @@ def compute_averaged_distribution(target_dist: Dict[str, float]) -> Dict[str, fl
 def map_to_expanded_domain(input_samples: List[int], averaged_dist: Dict[str, float], 
                           grain_size: float = 1/6) -> List[int]:
     """
-    Second transformation that maps samples to a larger domain.
+    Second transformation that maps samples to a larger domain [6n].
     For each input value i:
-    - Keep i with probability (bucket_size * grain_size/n) / averaged_prob(i)
-    - Map to overflow_value otherwise
+    - Map to segment [6(i-1)+1, 6i] with probability (bucket_size * grain_size/n) / averaged_prob(i)
+    - Map to overflow segment otherwise
     
     grain_size is γ from the paper (default 1/6)
     """
     domain_size = len(averaged_dist)
-    overflow_value = domain_size + 1
+    expanded_size = 6 * domain_size  # Should be n/γ where γ = 1/6
     expanded_samples = []
     
     for sample in input_samples:
         sample_key = str(sample)
         if sample_key not in averaged_dist:
-            expanded_samples.append(overflow_value)
+            # Map to overflow segment
+            expanded_samples.append(expanded_size)
             continue
             
         # Calculate bucket size for this value
-        # bucket_size = floor(averaged_prob * n/grain_size)
         prob = averaged_dist[sample_key]
         bucket_size = int(np.floor(prob * domain_size / grain_size))
         
@@ -92,43 +94,48 @@ def map_to_expanded_domain(input_samples: List[int], averaged_dist: Dict[str, fl
             keep_prob = min(1, keep_prob)  # Ensure valid probability
             
             if random.random() < keep_prob:
-                expanded_samples.append(sample)
+                # Map to corresponding segment in [6n]
+                segment_start = 6 * (int(sample_key) - 1) + 1
+                expanded_samples.append(segment_start + random.randint(0, 5))
             else:
-                expanded_samples.append(overflow_value)
+                expanded_samples.append(expanded_size)
         else:
-            expanded_samples.append(overflow_value)
+            expanded_samples.append(expanded_size)
     
     return expanded_samples
 
 def collision_tester(samples: List[int], domain_size: int, epsilon: float) -> bool:
     """
-    Test uniformity using collision statistics.
+    Normalized implementation of collision tester from lecture notes.
     
-    Args:
-        samples: Samples to test for uniformity
-        domain_size: Size of domain
-        epsilon: Proximity parameter
-    
-    Returns:
-        True if samples appear uniform, False otherwise
+    For domain size n:
+    - Uniform distributions should have C ≈ 1/n
+    - ε-far distributions should have C ≥ (1 + 4ε²)/n
     """
-    if len(samples) < 2:
-        raise ValueError("Need at least two samples for collision testing")
-
+    m = len(samples)
+    required_samples = int(np.ceil(np.sqrt(domain_size) / (epsilon * epsilon)))
+    
+    if m > required_samples:
+        samples = samples[:required_samples]
+    
     # Count collisions
-    sample_count = len(samples)
     frequency = Counter(samples)
-    collision_count = sum(f * (f - 1) for f in frequency.values())
-    collision_stat = collision_count / (sample_count * (sample_count - 1))
+    collision_count = sum(freq * (freq - 1) // 2 for freq in frequency.values())
     
-    # Threshold from Corollary 11.2
-    threshold = (1 + epsilon**2) / domain_size
+    # Normalize by domain size and sample size
+    m_choose_2 = (len(samples) * (len(samples) - 1)) // 2
+    C = (collision_count / m_choose_2) * (domain_size / 6)  # Divide by 6 for expanded domain
     
-    print(f"Collision statistic: {collision_stat:.6f}")
-    print(f"Uniform expectation: {1/domain_size:.6f}")
-    print(f"Threshold (1+ε²)/n: {threshold:.6f}")
+    # Thresholds according to lecture notes
+    uniform_threshold = 1 + 0.1 * epsilon**2  # Should be ≈ 1 for uniform
+    far_threshold = 1 + 4 * epsilon**2      # For ε-far distributions
     
-    return collision_stat <= threshold
+    print(f"Normalized collision statistic (C): {C:.6f}")
+    print(f"Uniform threshold (1 + 0.1ε²): {uniform_threshold:.6f}")
+    print(f"Far threshold (1 + 4ε²): {far_threshold:.6f}")
+    print(f"Samples used: {len(samples)} of {required_samples} required")
+    
+    return C <= uniform_threshold
 
 def goldreich_test(D: Dict[str, float], X_samples: List[int], epsilon: float) -> bool:
     """
@@ -144,7 +151,7 @@ def goldreich_test(D: Dict[str, float], X_samples: List[int], epsilon: float) ->
         True if X appears to match D, False otherwise
     """
     domain_size = len(D)
-    grain_param = 1/6  # As specified in paper
+    grain_param = 1/6  # As specified in paper, gamma
     
     # Step 1: Average with uniform distribution
     averaged_samples = average_with_uniform(X_samples, domain_size)
@@ -231,29 +238,43 @@ def verify_reduction(target_dist: Dict[str, float], test_samples: List[int],
     print(f"Maximum deviation: {max_deviation:.6f} (at element {max_dev_elem})")
     print(f"Uniformity property {'SATISFIED' if max_deviation < 0.1 else 'FAILED'}")
 
-def test_from_files(D_file: str, X_file: str, epsilon: float):
+def test_distribution_files(distribution_dir: str = "./D", samples_dir: str = "./X", epsilon: float = 0.1):
     """
-    Test distributions loaded from files
+    Test distributions from files for both close and far cases
     """
-    with open(D_file) as f:
-        D = json.load(f)
-    with open(X_file) as f:
-        X = json.load(f)
-    
-    result = goldreich_test(D, X["samples"], epsilon)
-    print("Accept: X matches D" if result else "Reject: X is far from D")
+    # Test each distribution file in the D directory
+    for d_file in glob.glob(os.path.join(distribution_dir, "*.json")):
+        dist_name = os.path.basename(d_file).replace(".json", "")
+        print(f"\nTesting distribution: {dist_name}")
+        
+        # Load the target distribution
+        with open(d_file) as f:
+            target_dist = json.load(f)
+        
+        # Test close samples
+        close_file = os.path.join(samples_dir, f"{dist_name}_X_close.json")
+        if os.path.exists(close_file):
+            print("\nTesting close samples:")
+            with open(close_file) as f:
+                close_samples = json.load(f)["samples"]
+            result = goldreich_test(target_dist, close_samples, epsilon)
+            print(f"Close samples test result: {'Accept' if result else 'Reject'}")
+            # Verify the reduction properties
+            verify_reduction(target_dist, close_samples)
+        
+        # Test far samples
+        far_file = os.path.join(samples_dir, f"{dist_name}_X_far.json")
+        if os.path.exists(far_file):
+            print("\nTesting far samples:")
+            with open(far_file) as f:
+                far_samples = json.load(f)["samples"]
+            result = goldreich_test(target_dist, far_samples, epsilon)
+            print(f"Far samples test result: {'Accept' if result else 'Reject'}")
+            # Verify the reduction properties
+            verify_reduction(target_dist, far_samples)
+
 
 if __name__ == "__main__":
-    # Load test data
-    with open("./D/D_gaussian.json") as f:
-        target_dist = json.load(f)
-    with open("./X/D_gaussian_X_close.json") as f:
-        close_samples = json.load(f)["samples"]
-    with open("./X/D_gaussian_X_far.json") as f:
-        far_samples = json.load(f)["samples"]
-        
-    print("Verifying reduction with close samples:")
-    verify_reduction(target_dist, close_samples)
+    # Test all distribution files
+    test_distribution_files()
     
-    print("\nVerifying reduction with far samples:")
-    verify_reduction(target_dist, far_samples)

@@ -2,9 +2,9 @@ import numpy as np
 import json
 import os
 from typing import Dict, List
-from goldreich import test_from_files
+from goldreich import test_distribution_files
 
-def generate_test_distributions(domain_size: int = 100, sample_size: int = 100000):
+def generate_test_distributions(domain_size: int = 1000, sample_size: int = 100000):
     """
     Generate test distributions designed to test the collision-based uniformity tester.
     Creates distributions with controlled L2-norm properties.
@@ -153,14 +153,14 @@ def run_tests(epsilon: float = 0.05):
         print(f"\nTesting {dist_name} distribution:")
         
         print("Testing far distribution:")
-        far_result = test_from_files(f"./D/D_{dist_name}.json", 
+        far_result = test_distribution_files(f"./D/D_{dist_name}.json", 
                                    f"./X/D_{dist_name}_X_far.json", epsilon)
         if not far_result:  # Should reject
             successes += 1
         total += 1
             
         print("\nTesting close distribution:")
-        close_result = test_from_files(f"./D/D_{dist_name}.json", 
+        close_result = test_distribution_files(f"./D/D_{dist_name}.json", 
                                      f"./X/D_{dist_name}_X_close.json", epsilon)
         if close_result:  # Should accept
             successes += 1
@@ -172,4 +172,4 @@ def run_tests(epsilon: float = 0.05):
 
 if __name__ == "__main__":
     print("Generating test distributions...")
-    generate_test_distributions(domain_size=100, sample_size=100000)
+    generate_test_distributions(domain_size=1000, sample_size=100000)

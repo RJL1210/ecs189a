@@ -1,0 +1,578 @@
+python .\goldreich.py
+
+Testing distribution: D_bimodal
+
+Testing close samples:
+Collision statistic (C): 0.018083
+Threshold ((1+ε²)/n): 0.001667  
+Close samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.000010
+Input max probability: 0.041440
+
+Averaging Step Verification:
+Minimum frequency found: 0.004950
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000060 at element 100
+For element 100:
+Original p(i): 0.000020
+Expected p'(i): 0.005010
+Actual p'(i): 0.004950
+
+Averaging property FAILED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.078093 (at element 101)
+Uniformity property SATISFIED
+
+Testing far samples:
+Collision statistic (C): 0.018430
+Threshold ((1+ε²)/n): 0.001667
+Far samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.000120
+Input max probability: 0.064590
+
+Averaging Step Verification:
+Minimum frequency found: 0.005060
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000015 at element 100
+For element 100:
+Original p(i): 0.064590
+Expected p'(i): 0.037295
+Actual p'(i): 0.037280
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.052933 (at element 101)
+Uniformity property SATISFIED
+
+Testing distribution: D_gaussian
+
+Testing close samples:
+Collision statistic (C): 0.014462
+Threshold ((1+ε²)/n): 0.001667
+Close samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.009190
+Input max probability: 0.010980
+
+Averaging Step Verification:
+Minimum frequency found: 0.009590
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000055 at element 100
+For element 100:
+Original p(i): 0.009630
+Expected p'(i): 0.009815
+Actual p'(i): 0.009760
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.073463 (at element 101)
+Uniformity property SATISFIED
+
+Testing far samples:
+Collision statistic (C): 0.015104
+Threshold ((1+ε²)/n): 0.001667
+Far samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.008250
+Input max probability: 0.020530
+
+Averaging Step Verification:
+Minimum frequency found: 0.009130
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000010 at element 100
+For element 100:
+Original p(i): 0.009000
+Expected p'(i): 0.009500
+Actual p'(i): 0.009490
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.077273 (at element 101)
+Uniformity property SATISFIED
+
+Testing distribution: D_l2_close
+
+Testing close samples:
+Collision statistic (C): 0.015987
+Threshold ((1+ε²)/n): 0.001667
+Close samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.009080
+Input max probability: 0.010810
+
+Averaging Step Verification:
+Minimum frequency found: 0.009540
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000010 at element 25
+For element 25:
+Original p(i): 0.009880
+Expected p'(i): 0.009940
+Actual p'(i): 0.009950
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.084813 (at element 101)
+Uniformity property SATISFIED
+
+Testing far samples:
+Collision statistic (C): 0.016149
+Threshold ((1+ε²)/n): 0.001667
+Far samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.008330
+Input max probability: 0.020480
+
+Averaging Step Verification:
+Minimum frequency found: 0.009160
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000020 at element 100
+For element 100:
+Original p(i): 0.008900
+Expected p'(i): 0.009450
+Actual p'(i): 0.009430
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.085113 (at element 101)
+Uniformity property SATISFIED
+
+Testing distribution: D_l2_far
+
+Testing close samples:
+Collision statistic (C): 0.019194
+Threshold ((1+ε²)/n): 0.001667
+Close samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.009130
+Input max probability: 0.011800
+
+Averaging Step Verification:
+Minimum frequency found: 0.009570
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000070 at element 100
+For element 100:
+Original p(i): 0.009820
+Expected p'(i): 0.009910
+Actual p'(i): 0.009840
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.105193 (at element 101)
+Uniformity property FAILED
+
+Testing far samples:
+Collision statistic (C): 0.018531
+Threshold ((1+ε²)/n): 0.001667
+Far samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.008120
+Input max probability: 0.020660
+
+Averaging Step Verification:
+Minimum frequency found: 0.009060
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000005 at element 11
+For element 11:
+Original p(i): 0.009010
+Expected p'(i): 0.009505
+Actual p'(i): 0.009500
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.098323 (at element 101)
+Uniformity property SATISFIED
+
+Testing distribution: D_noisy_uniform
+
+Testing close samples:
+Collision statistic (C): 0.014986
+Threshold ((1+ε²)/n): 0.001667
+Close samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.003380
+Input max probability: 0.016390
+
+Averaging Step Verification:
+Minimum frequency found: 0.006690
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000025 at element 100
+For element 100:
+Original p(i): 0.010450
+Expected p'(i): 0.010225
+Actual p'(i): 0.010200
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.078313 (at element 101)
+Uniformity property SATISFIED
+
+Testing far samples:
+Collision statistic (C): 0.015855
+Threshold ((1+ε²)/n): 0.001667
+Far samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.005590
+Input max probability: 0.026930
+
+Averaging Step Verification:
+Minimum frequency found: 0.007800
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000015 at element 3
+For element 3:
+Original p(i): 0.009990
+Expected p'(i): 0.009995
+Actual p'(i): 0.010010
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.082973 (at element 101)
+Uniformity property SATISFIED
+
+Testing distribution: D_powerlaw
+
+Testing close samples:
+Collision statistic (C): 0.040171
+Threshold ((1+ε²)/n): 0.001667
+Close samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.000970
+Input max probability: 0.278590
+
+Averaging Step Verification:
+Minimum frequency found: 0.005480
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000005 at element 1
+For element 1:
+Original p(i): 0.278590
+Expected p'(i): 0.144295
+Actual p'(i): 0.144300
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.142153 (at element 1)
+Uniformity property FAILED
+
+Testing far samples:
+Collision statistic (C): 0.043514
+Threshold ((1+ε²)/n): 0.001667
+Far samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.000950
+Input max probability: 0.275680
+
+Averaging Step Verification:
+Minimum frequency found: 0.005480
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000020 at element 7
+For element 7:
+Original p(i): 0.002240
+Expected p'(i): 0.006120
+Actual p'(i): 0.006140
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.146543 (at element 101)
+Uniformity property FAILED
+
+Testing distribution: D_random
+
+Testing close samples:
+Collision statistic (C): 0.017279
+Threshold ((1+ε²)/n): 0.001667
+Close samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.000000
+Input max probability: 0.050130
+
+Averaging Step Verification:
+Minimum frequency found: 0.005000
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000050 at element 100
+For element 100:
+Original p(i): 0.005660
+Expected p'(i): 0.007830
+Actual p'(i): 0.007780
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.078363 (at element 101)
+Uniformity property SATISFIED
+
+Testing far samples:
+Collision statistic (C): 0.027642
+Threshold ((1+ε²)/n): 0.001667
+Far samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.000000
+Input max probability: 0.084710
+
+Averaging Step Verification:
+Minimum frequency found: 0.005000
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000010 at element 42
+For element 42:
+Original p(i): 0.000800
+Expected p'(i): 0.005400
+Actual p'(i): 0.005410
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.081523 (at element 101)
+Uniformity property SATISFIED
+
+Testing distribution: D_skewed
+
+Testing close samples:
+Collision statistic (C): 0.027510
+Threshold ((1+ε²)/n): 0.001667
+Close samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.000000
+Input max probability: 0.160250
+
+Averaging Step Verification:
+Minimum frequency found: 0.005000
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000010 at element 17
+For element 17:
+Original p(i): 0.007480
+Expected p'(i): 0.008740
+Actual p'(i): 0.008750
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.097933 (at element 101)
+Uniformity property SATISFIED
+
+Testing far samples:
+Collision statistic (C): 0.033518
+Threshold ((1+ε²)/n): 0.001667
+Far samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.000210
+Input max probability: 0.123570
+
+Averaging Step Verification:
+Minimum frequency found: 0.005090
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000015 at element 100
+For element 100:
+Original p(i): 0.000210
+Expected p'(i): 0.005105
+Actual p'(i): 0.005090
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.078953 (at element 101)
+Uniformity property SATISFIED
+
+Testing distribution: D_step
+
+Testing close samples:
+Collision statistic (C): 0.016893
+Threshold ((1+ε²)/n): 0.001667
+Close samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.001050
+Input max probability: 0.020540
+
+Averaging Step Verification:
+Minimum frequency found: 0.005520
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000010 at element 23
+For element 23:
+Original p(i): 0.020520
+Expected p'(i): 0.015260
+Actual p'(i): 0.015270
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.081933 (at element 101)
+Uniformity property SATISFIED
+
+Testing far samples:
+Collision statistic (C): 0.019620
+Threshold ((1+ε²)/n): 0.001667
+Far samples test result: Reject
+
+## Verification Results:
+
+Input Distribution Analysis:
+Input min probability: 0.001000
+Input min probability: 0.001000
+Input min probability: 0.001000
+Input max probability: 0.019580
+Input min probability: 0.001000
+Input max probability: 0.019580
+
+Averaging Step Verification:
+Input min probability: 0.001000
+Input max probability: 0.019580
+
+Averaging Step Verification:
+Input min probability: 0.001000
+Input max probability: 0.019580
+Input min probability: 0.001000
+Input max probability: 0.019580
+Input min probability: 0.001000
+Input max probability: 0.019580
+
+Input min probability: 0.001000
+Input max probability: 0.019580
+
+Input min probability: 0.001000
+Input max probability: 0.019580
+
+Input min probability: 0.001000
+Input max probability: 0.019580
+
+Input min probability: 0.001000
+Input max probability: 0.019580
+Input min probability: 0.001000
+Input max probability: 0.019580
+Input min probability: 0.001000
+Input max probability: 0.019580
+Input min probability: 0.001000
+Input max probability: 0.019580
+Input min probability: 0.001000
+Input min probability: 0.001000
+Input max probability: 0.019580
+
+Averaging Step Verification:
+Minimum frequency found: 0.005500
+Required minimum (1/2n): 0.005000
+
+Probability Verification:
+Maximum deviation from expected probability: 0.000005 at element 56
+For element 56:
+Original p(i): 0.018490
+Expected p'(i): 0.014245
+Actual p'(i): 0.014240
+
+Averaging property SATISFIED
+
+Expansion Step Verification:
+Expected uniform probability: 0.001667
+Maximum deviation: 0.099433 (at element 101)
+Uniformity property SATISFIED
