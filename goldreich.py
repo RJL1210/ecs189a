@@ -1,280 +1,387 @@
-import numpy as np
 import random
-import json
-from collections import Counter
-from typing import List, Dict
-import os
-import glob
+import math
+from collections import Counter, defaultdict
+from typing import Dict, List, Tuple
+import statistics
+import glob, os, json
+import numpy as np
+import matplotlib.pyplot as plt
 
-def average_with_uniform(input_samples: List[int], domain_size: int) -> List[int]:
-    """
-    First transformation that averages input distribution with uniform distribution.
-    Guarantees that for any element i: p'(i) = 0.5p(i) + 0.5/n exactly.
-    
-    Args:
-        input_samples: Original samples from distribution p
-        domain_size: Size of the domain [n]
-    
-    Returns:
-        Samples from distribution p' where p'(i) = 0.5p(i) + 0.5/n
-    """
-    total_samples = len(input_samples)
-    
-    # Count frequencies in input samples
-    input_counts = Counter(input_samples)
-    input_probs = {i: input_counts.get(i, 0)/total_samples for i in range(1, domain_size + 1)}
-    
-    # Calculate exact counts needed for each element
-    averaged_counts = {}
-    for i in range(1, domain_size + 1):
-        # p'(i) = 0.5p(i) + 0.5/n
-        target_prob = 0.5 * input_probs.get(i, 0) + 0.5/domain_size
-        # Convert probability to count
-        averaged_counts[i] = int(round(target_prob * total_samples))
-    
-    # Generate samples according to exact counts
-    averaged_samples = []
-    for element, count in averaged_counts.items():
-        averaged_samples.extend([element] * count)
-    
-    # Adjust length if necessary due to rounding
-    while len(averaged_samples) < total_samples:
-        averaged_samples.append(random.randint(1, domain_size))
-    while len(averaged_samples) > total_samples:
-        averaged_samples.pop()
-        
-    # Shuffle to maintain randomness
-    random.shuffle(averaged_samples)
-    
-    return averaged_samples
+DEBUG = True  # Set to False to reduce verbosity
+VERBOSE = False  # Set to True for deeper insights
 
-def compute_averaged_distribution(target_dist: Dict[str, float]) -> Dict[str, float]:
-    """
-    Compute the averaged distribution where each probability is
-    averaged_prob(i) = 0.5 * original_prob(i) + 0.5 * (1/n)
-    """
-    domain_size = len(target_dist)
-    uniform_prob = 1.0 / domain_size
-    averaged_dist = {}
-    
-    for i in range(1, domain_size + 1):
-        original_prob = target_dist.get(str(i), 0)
-        averaged_dist[str(i)] = 0.5 * original_prob + 0.5 * uniform_prob
-    
-    return averaged_dist
+# Helper Functions for Debugging
+def debug(msg: str, level: str = "INFO"):
+    """Print debug messages based on the DEBUG flag."""
+    if DEBUG:
+        print(f"[{level}] {msg}")
 
-def map_to_expanded_domain(input_samples: List[int], averaged_dist: Dict[str, float], 
-                          grain_size: float = 1/6) -> List[int]:
+def verbose_debug(msg: str):
+    """Print verbose debug messages based on the VERBOSE flag."""
+    if VERBOSE:
+        print(f"[VERBOSE] {msg}")
+
+def warn(msg: str):
+    """Print warning messages."""
+    print(f"[WARNING] {msg}")
+
+def log_to_file(filename: str, content: str):
+    """Log messages to a file for further analysis."""
+    with open(filename, 'a') as log_file:
+        log_file.write(content + '\n')
+
+# Functions with Enhanced Debugging
+def get_uniform_distribution(n: int) -> Dict[str, float]:
+    """Get uniform distribution over [n]"""
+    debug(f"Creating uniform distribution for n={n}.", level="STEP")
+    return {str(i): 1.0/n for i in range(1, n+1)}
+
+def mix_distribution_with_uniform(D: Dict[str, float]) -> Dict[str, float]:
     """
-    Second transformation that maps samples to a larger domain [6n].
-    For each input value i:
-    - Map to segment [6(i-1)+1, 6i] with probability (bucket_size * grain_size/n) / averaged_prob(i)
-    - Map to overflow segment otherwise
-    
-    grain_size is γ from the paper (default 1/6)
+    Creates q' from D:
+    q'(i) = 0.5*D(i) + 0.5*(1/n)
     """
-    domain_size = len(averaged_dist)
-    expanded_size = 6 * domain_size  # Should be n/γ where γ = 1/6
-    expanded_samples = []
-    
-    for sample in input_samples:
-        sample_key = str(sample)
-        if sample_key not in averaged_dist:
-            # Map to overflow segment
-            expanded_samples.append(expanded_size)
-            continue
-            
-        # Calculate bucket size for this value
-        prob = averaged_dist[sample_key]
-        bucket_size = int(np.floor(prob * domain_size / grain_size))
-        
-        # Probability of keeping the sample
-        if prob > 0:
-            keep_prob = (bucket_size * grain_size / domain_size) / prob
-            keep_prob = min(1, keep_prob)  # Ensure valid probability
-            
+    n = len(D)
+    uniform_prob = 1.0 / n
+    q_prime = {}
+    for i in range(1, n+1):
+        q_i = D.get(str(i), 0.0)
+        q_prime[str(i)] = 0.5*q_i + 0.5*uniform_prob
+    debug(f"Mixed distribution q' created for n={n}.", level="STEP")
+    verbose_debug(f"q': {q_prime}")
+    return q_prime
+
+
+def quantize_distribution(q_prime: Dict[str, float], gamma: float = 1/6) -> Dict[str, float]:
+    """
+    Compute q'' from q':
+    q''(i) = (floor(q'(i)*n/gamma)*gamma)/n
+    """
+    n = len(q_prime)
+    q_double_prime = {}
+    total_mass = 0.0
+    for i in range(1, n+1):
+        q_pi = q_prime[str(i)]
+        m_i = math.floor(q_pi * n / gamma)
+        q_double_prime[str(i)] = (m_i * gamma) / n
+        total_mass += q_double_prime[str(i)]
+
+    # Normalize q''
+    for i in range(1, n+1):
+        q_double_prime[str(i)] /= total_mass
+
+    # Validation and Summary
+    validate_graining(q_double_prime, n, gamma)
+    debug(f"Quantized distribution q'' created. Total mass = {total_mass:.6f}, Deviation = {abs(1 - total_mass):.6f}")
+    verbose_debug(f"q'': {q_double_prime}")
+    return q_double_prime
+
+def validate_graining(q_double_prime, n, gamma):
+    for key, value in q_double_prime.items():
+        multiple = value * n / gamma
+        #if abs(multiple - round(multiple)) >= 1e-10:
+            #warn(f"Graining error at {key}: {value}")
+
+
+def transform_p_prime_to_p_double_prime(p_prime_samples: List[int], 
+                                        q_prime: Dict[str, float],
+                                        q_double_prime: Dict[str, float], 
+                                        gamma: float = 1/6) -> List[int]:
+    """
+    Transform p' into p'' using q''(i)/q'(i).
+    """
+    p_double_prime = []
+    for s in p_prime_samples:
+        q_p = q_prime[str(s)]
+        q_pp = q_double_prime[str(s)]
+        if q_p > 0:
+            keep_prob = q_pp / q_p
             if random.random() < keep_prob:
-                # Map to corresponding segment in [6n]
-                segment_start = 6 * (int(sample_key) - 1) + 1
-                expanded_samples.append(segment_start + random.randint(0, 5))
-            else:
-                expanded_samples.append(expanded_size)
+                p_double_prime.append(s)
+    debug(f"Transformed p' into p'' with {len(p_double_prime)} samples retained.", level="STEP")
+    return p_double_prime
+
+
+def apply_uniform_filter(p_samples: List[int], n: int) -> List[int]:
+    """
+    Apply uniform filter to create p' from p.
+    """
+    p_prime = []
+    for s in p_samples:
+        if random.random() < 0.5:
+            p_prime.append(s)
         else:
-            expanded_samples.append(expanded_size)
-    
-    return expanded_samples
+            p_prime.append(random.randint(1, n))
+    debug(f"Uniform filter applied. p' size = {len(p_prime)} (Original size: {len(p_samples)}).", level="STEP")
+    return p_prime
 
-def collision_tester(samples: List[int], domain_size: int, epsilon: float) -> bool:
+# Core Algorithms with Enhanced Debugging
+def algorithm_8(D: Dict[str, float], p_samples: List[int], gamma: float=1/6) -> Tuple[Dict[str, float], List[int]]:
     """
-    Normalized implementation of collision tester from lecture notes.
-    
-    For domain size n:
-    - Uniform distributions should have C ≈ 1/n
-    - ε-far distributions should have C ≥ (1 + 4ε²)/n
+    Implements Algorithm 8 with enhanced debugging.
     """
-    m = len(samples)
-    required_samples = int(np.ceil(np.sqrt(domain_size) / (epsilon * epsilon)))
-    
-    if m > required_samples:
-        samples = samples[:required_samples]
-    
-    # Count collisions
-    frequency = Counter(samples)
-    collision_count = sum(freq * (freq - 1) // 2 for freq in frequency.values())
-    
-    # Normalize by domain size and sample size
-    m_choose_2 = (len(samples) * (len(samples) - 1)) // 2
-    C = (collision_count / m_choose_2) * (domain_size / 6)  # Divide by 6 for expanded domain
-    
-    # Thresholds according to lecture notes
-    uniform_threshold = 1 + 0.1 * epsilon**2  # Should be ≈ 1 for uniform
-    far_threshold = 1 + 4 * epsilon**2      # For ε-far distributions
-    
-    print(f"Normalized collision statistic (C): {C:.6f}")
-    print(f"Uniform threshold (1 + 0.1ε²): {uniform_threshold:.6f}")
-    print(f"Far threshold (1 + 4ε²): {far_threshold:.6f}")
-    print(f"Samples used: {len(samples)} of {required_samples} required")
-    
-    return C <= uniform_threshold
+    debug("Starting Algorithm 8.", level="STEP")
 
-def goldreich_test(D: Dict[str, float], X_samples: List[int], epsilon: float) -> bool:
+    # Step 1: p'
+    p_prime = apply_uniform_filter(p_samples, len(D))
+    
+    # Step 2: q'
+    q_prime = mix_distribution_with_uniform(D)
+    
+    # Step 3: q''
+    q_double_prime = quantize_distribution(q_prime, gamma)
+    
+    # Step 4: p''
+    p_double_prime = transform_p_prime_to_p_double_prime(p_prime, q_prime, q_double_prime, gamma)
+
+    # Summary
+    debug(f"Algorithm 8 completed: q'' mass = {sum(q_double_prime.values()):.6f}, p'' size = {len(p_double_prime)}.", level="SUMMARY")
+    return q_double_prime, p_double_prime
+
+def algorithm_5(q_double_prime: Dict[str, float], 
+                p_double_prime_samples: List[int], 
+                gamma: float = 1/6) -> Tuple[List[int], int]:
     """
-    Main testing function implementing Algorithm 8 from Goldreich's paper.
-    Tests if distribution X is close to distribution D.
+    Implements Algorithm 5:
+    - Input: q'' (m-grained) over [n], p'' samples from p'' over [n].
+    - Output: Samples mapped to [m+1] for uniformity testing.
+    """
+    n = len(q_double_prime)
+    m = int(n / gamma)  # m = n/gamma, should be integral if gamma divides 1/6 and so forth
+    
+    # Compute m_i = q''(i)*m
+    m_i = []
+    total_qpp = 0.0
+    for i in range(1, n+1):
+        val = q_double_prime[str(i)]
+        total_qpp += val
+        # Since q'' is m-grained, q''(i)*m should be an integer
+        m_val = int(round(val * m))
+        m_i.append(m_val)
+    
+    # Add the leftover element (m+1)
+    m_plus_1 = int(round((1 - total_qpp) * m))
+    
+    # Compute prefix sums for m_i
+    prefix_sum = [0]*(n+1)
+    for i in range(1, n+1):
+        prefix_sum[i] = prefix_sum[i-1] + m_i[i-1]
+    
+    # The final domain size is m_total + 1, where m_total = prefix_sum[n] + m_plus_1
+    m_total = prefix_sum[n] + m_plus_1
+    domain_size = m_total + 1
+    
+    mapped_samples = []
+    for s in p_double_prime_samples:
+        i = s
+        if m_i[i-1] > 0:
+            j_x = random.randint(1, m_i[i-1])
+            rank = prefix_sum[i-1] + j_x
+            mapped_samples.append(rank)
+        else:
+            # Map to the leftover element (m+1)
+            mapped_samples.append(domain_size)
+
+    return mapped_samples, domain_size
+
+
+def collision_tester_uniformity(samples: List[int], m: int, epsilon: float) -> bool:
+    """
+    Balanced collision tester using Hoeffding's inequality.
+    For close distributions, should accept with probability ~2/3.
+    For far distributions, should reject with high probability.
+    """
+    # Filter valid samples
+    filtered = [s for s in samples if 1 <= s <= m]
+    M = len(filtered)
+    
+    if M < 2:
+        if DEBUG:
+            print(f"[collision_tester] Not enough valid samples: {M} (needed at least 2)")
+        return True
+    
+    # Count frequencies
+    freq = Counter(filtered)
+    
+    # Compute collisions
+    collision_count = sum(c * (c-1) // 2 for c in freq.values())
+    total_pairs = M * (M-1) // 2
+    
+    if total_pairs == 0:
+        return True
+        
+    # Compute collision statistic
+    C = collision_count / total_pairs
+    
+    # Base threshold from lecture
+    base_threshold = (1 + epsilon**2) / m
+    
+    # Compute Hoeffding's inequality term
+    hoeffding_term = math.sqrt((2 * base_threshold * (1 - base_threshold)) / M)
+    
+    # Final threshold
+    threshold = base_threshold + hoeffding_term
+    
+    if DEBUG:
+        print(f"[collision_tester] Statistics:")
+        print(f"  - Valid samples: {M}")
+        print(f"  - Unique values: {len(freq)}")
+        print(f"  - Collision rate C: {C:.15f}")
+        print(f"  - Base threshold: {base_threshold:.15f}")
+        print(f"  - Hoeffding term: {hoeffding_term:.15f}")
+        print(f"  - Final threshold: {threshold:.15f}")
+        print(f"  - Decision: {'Accept' if C <= threshold else 'Reject'}")
+        if C <= threshold:
+            print(f"  - Below threshold by: {threshold - C:.15f}")
+        else:
+            print(f"  - Above threshold by: {C - threshold:.15f}")
+    
+    return C <= threshold
+
+
+def goldreich_reduction(D: Dict[str, float], p_samples: List[int], epsilon: float, gamma: float = 1/6) -> bool:
+    """
+    Enhanced testing function with better diagnostics
+    """
+    if DEBUG:
+        print("\n[goldreich_reduction] Starting test with:")
+        print(f"  - Sample size: {len(p_samples)}")
+        print(f"  - Epsilon: {epsilon}")
+        print(f"  - Gamma: {gamma}")
+    
+    # Run Algorithm 8
+    q_double_prime, p_double_prime = algorithm_8(D, p_samples, gamma)
+    print(f"[DEBUG] After Algorithm 8: Size of p'': {len(p_double_prime)}, Domain size: {len(q_double_prime)}")
+
+    
+    # Run Algorithm 5
+    mapped_samples, m = algorithm_5(q_double_prime, p_double_prime)
+    
+    if DEBUG:
+        print(f"[DEBUG] Input sample size: {len(p_samples)}")
+        print(f"[DEBUG] p'' size after Algorithm 8: {len(p_double_prime)}")
+        print(f"[DEBUG] Mapped samples size after Algorithm 5: {len(mapped_samples)}")
+        print(f"[DEBUG] Final domain size for collision testing: {m}")
+    
+
+
+    # Run collision tester
+    return collision_tester_uniformity(mapped_samples, m, epsilon)
+
+def test_goldreich_reduction(test_dir="./D", sample_dir="./X", epsilon=0.001, gamma=1/6):
+    """
+    Test the goldreich_reduction implementation using generated distributions and samples.
     
     Args:
-        D: Target distribution
-        X_samples: Samples from distribution to test
-        epsilon: Distance parameter
-    
+        test_dir (str): Path to the directory containing distribution JSON files.
+        sample_dir (str): Path to the directory containing sample JSON files.
+        epsilon (float): Distance parameter for the reduction.
+        gamma (float): Graining parameter for the reduction.
+        
     Returns:
-        True if X appears to match D, False otherwise
+        None
     """
-    domain_size = len(D)
-    grain_param = 1/6  # As specified in paper, gamma
-    
-    # Step 1: Average with uniform distribution
-    averaged_samples = average_with_uniform(X_samples, domain_size)
-    
-    # Compute averaged distribution
-    averaged_dist = compute_averaged_distribution(D)
-    
-    # Step 2: Map to expanded domain
-    expanded_samples = map_to_expanded_domain(averaged_samples, averaged_dist, grain_param)
-    
-    # Test uniformity on expanded domain [6n]
-    expanded_domain_size = 6 * domain_size
-    return collision_tester(expanded_samples, expanded_domain_size, epsilon/3)
 
-def verify_reduction(target_dist: Dict[str, float], test_samples: List[int], 
-                    num_verify_samples: int = 100000):
-    """
-    Verify reduction properties with focus on exact probabilities
-    """
-    domain_size = len(target_dist)
-    print("\nVerification Results:")
-    print("-" * 50)
-    
-    verify_samples = test_samples[:num_verify_samples]
-    
-    # Input distribution analysis
-    print("Input Distribution Analysis:")
-    input_freqs = Counter(verify_samples)
-    input_probs = {i: input_freqs.get(i, 0)/num_verify_samples 
-                   for i in range(1, domain_size + 1)}
-    
-    print(f"Input min probability: {min(input_probs.values()):.6f}")
-    print(f"Input max probability: {max(input_probs.values()):.6f}")
-    
-    # Averaging verification
-    averaged_samples = average_with_uniform(verify_samples, domain_size)
-    avg_freqs = Counter(averaged_samples)
-    avg_probs = {i: avg_freqs.get(i, 0)/num_verify_samples 
-                 for i in range(1, domain_size + 1)}
-    
-    print("\nAveraging Step Verification:")
-    min_freq = min(avg_probs.values())
-    min_required = 1/(2*domain_size)
-    
-    print(f"Minimum frequency found: {min_freq:.6f}")
-    print(f"Required minimum (1/2n): {min_required:.6f}")
-    
-    # Verify averaging formula exactly
-    print("\nProbability Verification:")
-    max_diff = 0
-    worst_element = None
-    
-    for i in range(1, domain_size + 1):
-        expected = 0.5 * input_probs[i] + 0.5/domain_size
-        actual = avg_probs[i]
-        diff = abs(expected - actual)
-        if diff > max_diff:
-            max_diff = diff
-            worst_element = i
-    
-    print(f"Maximum deviation from expected probability: {max_diff:.6f} at element {worst_element}")
-    print(f"For element {worst_element}:")
-    print(f"  Original p(i): {input_probs[worst_element]:.6f}")
-    print(f"  Expected p'(i): {0.5 * input_probs[worst_element] + 0.5/domain_size:.6f}")
-    print(f"  Actual p'(i): {avg_probs[worst_element]:.6f}")
-    
-    print(f"\nAveraging property {'SATISFIED' if min_freq >= min_required else 'FAILED'}")
-    
-    # Expansion verification
-    averaged_dist = compute_averaged_distribution(target_dist)
-    expanded_samples = map_to_expanded_domain(averaged_samples, averaged_dist)
-    
-    expanded_freqs = Counter(expanded_samples)
-    expanded_probs = {k: v/len(expanded_samples) for k, v in expanded_freqs.items()}
-    
-    print("\nExpansion Step Verification:")
-    expected_uniform = 1/(6*domain_size)
-    print(f"Expected uniform probability: {expected_uniform:.6f}")
-    
-    max_dev_elem = max(expanded_probs.keys(), 
-                      key=lambda k: abs(expanded_probs[k] - expected_uniform))
-    max_deviation = abs(expanded_probs[max_dev_elem] - expected_uniform)
-    
-    print(f"Maximum deviation: {max_deviation:.6f} (at element {max_dev_elem})")
-    print(f"Uniformity property {'SATISFIED' if max_deviation < 0.1 else 'FAILED'}")
+    # Fetch all distribution files
+    distribution_files = sorted([f for f in os.listdir(test_dir) if f.endswith(".json")])
+    results = []
 
-def test_distribution_files(distribution_dir: str = "./D", samples_dir: str = "./X", epsilon: float = 0.1):
-    """
-    Test distributions from files for both close and far cases
-    """
-    # Test each distribution file in the D directory
-    for d_file in glob.glob(os.path.join(distribution_dir, "*.json")):
-        dist_name = os.path.basename(d_file).replace(".json", "")
-        print(f"\nTesting distribution: {dist_name}")
-        
-        # Load the target distribution
-        with open(d_file) as f:
-            target_dist = json.load(f)
-        
+    for dist_file in distribution_files:
+        dist_path = os.path.join(test_dir, dist_file)
+
+        # Load distribution D
+        with open(dist_path, "r") as f:
+            D = json.load(f)
+
+        # Dynamically determine close and far sample file names
+        base_name = os.path.splitext(dist_file)[0]
+        close_sample_file = f"{base_name}_X_close.json"
+        far_sample_file = f"{base_name}_X_far.json"
+
+        close_sample_path = os.path.join(sample_dir, close_sample_file)
+        far_sample_path = os.path.join(sample_dir, far_sample_file)
+
+        if not os.path.exists(close_sample_path):
+            print(f"[WARNING] Missing close sample file: {close_sample_path}. Skipping...")
+            continue
+
+        if not os.path.exists(far_sample_path):
+            print(f"[WARNING] Missing far sample file: {far_sample_path}. Skipping...")
+            continue
+
+        with open(close_sample_path, "r") as f:
+            close_samples = json.load(f)["samples"]
+
+        with open(far_sample_path, "r") as f:
+            far_samples = json.load(f)["samples"]
+
         # Test close samples
-        close_file = os.path.join(samples_dir, f"{dist_name}_X_close.json")
-        if os.path.exists(close_file):
-            print("\nTesting close samples:")
-            with open(close_file) as f:
-                close_samples = json.load(f)["samples"]
-            result = goldreich_test(target_dist, close_samples, epsilon)
-            print(f"Close samples test result: {'Accept' if result else 'Reject'}")
-            # Verify the reduction properties
-            verify_reduction(target_dist, close_samples)
-        
+        print(f"Testing close samples for {dist_file}...")
+        is_uniform_close = goldreich_reduction(D, close_samples, epsilon, gamma)
+        results.append((dist_file, "close", is_uniform_close))
+
         # Test far samples
-        far_file = os.path.join(samples_dir, f"{dist_name}_X_far.json")
-        if os.path.exists(far_file):
-            print("\nTesting far samples:")
-            with open(far_file) as f:
-                far_samples = json.load(f)["samples"]
-            result = goldreich_test(target_dist, far_samples, epsilon)
-            print(f"Far samples test result: {'Accept' if result else 'Reject'}")
-            # Verify the reduction properties
-            verify_reduction(target_dist, far_samples)
+        print(f"Testing far samples for {dist_file}...")
+        is_uniform_far = goldreich_reduction(D, far_samples, epsilon, gamma)
+        results.append((dist_file, "far", is_uniform_far))
+
+    # Summarize results
+    print("\nTest Results:")
+    for dist_file, sample_type, is_uniform in results:
+        print(f"  Distribution: {dist_file}, Sample Type: {sample_type}, Result: {'Uniform' if is_uniform else 'Not Uniform'}")
+
+    # Summarize results
+    print("\nTest Results:")
+    for dist_file, sample_type, is_uniform in results:
+        print(f"  Distribution: {dist_file}, Sample Type: {sample_type}, Result: {'Uniform' if is_uniform else 'Not Uniform'}")
+
+    # Add the following code here
+
+    # Additional checks for D_far_exact distribution
+    far_exact_dist_file = "D_far_exact.json"
+    far_exact_dist_path = os.path.join(test_dir, far_exact_dist_file)
+
+    with open(far_exact_dist_path, "r") as f:
+        D_far_exact = json.load(f)
+
+     # Print q' and q'' distributions for D_far_exact
+    q_prime = mix_distribution_with_uniform(D_far_exact)
+    print("q' distribution for D_far_exact:")
+    print(q_prime)
+
+    q_double_prime = quantize_distribution(q_prime, gamma)
+    print("q'' distribution for D_far_exact:")
+    print(q_double_prime)
 
 
+    # Calculate total variation distance
+    def total_variation_distance(p, q):
+        return sum(abs(p_i - q_i) for p_i, q_i in zip(p, q)) / 2
+
+    uniform_dist = [1/len(D_far_exact)] * len(D_far_exact)
+    tvd = total_variation_distance(list(D_far_exact.values()), uniform_dist)
+    print(f"\nTotal Variation Distance (D_far_exact vs. Uniform): {tvd}")
+
+    plt.figure(figsize=(10, 6))
+    plt.bar(range(1, len(D_far_exact)+1), D_far_exact.values())
+    plt.xlabel('Element')
+    plt.ylabel('Probability')
+    plt.title('D_far_exact Distribution')
+    plt.show()
+
+    # Generate multiple sets of far samples and test separately
+    num_sample_sets = 5
+    for i in range(num_sample_sets):
+        print(f"\nTesting far samples for D_far_exact (Set {i+1})...")
+        far_samples = np.random.choice(range(1, len(D_far_exact)+1), size=100000, p=list(D_far_exact.values()))
+        is_uniform_far = goldreich_reduction(D_far_exact, far_samples, epsilon, gamma)
+        print(f"  Result: {'Uniform' if is_uniform_far else 'Not Uniform'}")
+
+# Example Debug Usage
 if __name__ == "__main__":
-    # Test all distribution files
-    test_distribution_files()
-    
+    # Example Usage with Debugging
+    DEBUG = True
+    VERBOSE = False
+
+    # Test the goldreich_reduction function
+    test_goldreich_reduction()

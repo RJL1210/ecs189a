@@ -1,187 +1,128 @@
 import numpy as np
 import json
 import os
-from typing import Dict, List
-from goldreich import goldreich_test
 
-def generate_test_distributions(domain_size: int = 1000, sample_size: int = 100000):
+def generate_nice_distributions(domain_size=1000, sample_size=100000):
     """
-    Generate test distributions designed to test the collision-based uniformity tester.
-    Creates distributions with controlled L2-norm properties.
+    Generate distributions that are more complex than uniform but still have nice,
+    rational probabilities that sum to exactly 1. This helps avoid approximation issues.
     """
+
     os.makedirs("./D", exist_ok=True)
     os.makedirs("./X", exist_ok=True)
-    
-    def create_gaussian():
-        """
-        Create a well-behaved Gaussian distribution
-        """
-        mean = domain_size / 2
-        std = domain_size / 6
-        probs = np.exp(-0.5 * ((np.arange(1, domain_size + 1) - mean) / std) ** 2)
-        return probs / np.sum(probs)    
-    
-    def create_gaussian_close():
-        """
-        Create a close-to-uniform gaussian
-        """
-        mean = domain_size / 2
-        std = domain_size / 2  # Increased std to make distribution flatter
-        probs = np.exp(-0.5 * ((np.arange(1, domain_size + 1) - mean) / std) ** 2)
-        # Mix with uniform to ensure closeness
-        uniform = np.ones(domain_size) / domain_size
-        probs = 0.8 * uniform + 0.2 * (probs / np.sum(probs))
-        return probs / np.sum(probs)
 
-    def create_close_samples(base_dist):
+    n = domain_size
+    uniform = np.ones(n) / n
+
+    def save_distribution_and_samples(dist_name, probs):
         """
-        Create samples that are guaranteed to be close to uniform
+        Given a distribution 'probs', save the distribution D_<dist_name>.json and
+        generate close and far samples.
+        
+        Close samples: Mix with uniform heavily (90% uniform + 10% this distribution).
+        Far samples: Use a separate far distribution (already defined as far_exact) or just
+        create a different pattern and use it for far samples.
         """
-        # Mix base distribution heavily with uniform
-        uniform = np.ones(domain_size) / domain_size
-        close_probs = 0.9 * uniform + 0.1 * base_dist
-        return np.random.choice(range(1, domain_size + 1), 
-                              size=sample_size, 
-                              p=close_probs)
-    
-    def create_l2_controlled_far(epsilon: float = 0.1):
-        """
-        Create distribution with controlled L2-norm to ensure it's ε-far from uniform.
-        Uses concentration on a subset of elements to achieve desired L2-norm.
-        """
-        # Calculate target L2 norm from Corollary 11.2
-        target_l2_squared = (1 + 4 * epsilon * epsilon) / domain_size
-        
-        # Initialize probabilities
-        probs = np.ones(domain_size)
-        
-        # Concentrate probability on sqrt(n) elements
-        num_concentrated = max(1, int(np.sqrt(domain_size)))
-        
-        # Calculate concentration while ensuring non-negative probabilities
-        high_prob = min(0.8 / num_concentrated, 2.0 / domain_size)  # Cap the high probability
-        
-        # Set high probability for concentrated elements
-        probs[:num_concentrated] = high_prob
-        
-        # Set remaining probability uniformly
-        remaining_prob = (1.0 - high_prob * num_concentrated) / (domain_size - num_concentrated)
-        probs[num_concentrated:] = remaining_prob
-        
-        # Ensure non-negative and normalized
-        probs = np.maximum(probs, 0)
-        return probs / np.sum(probs)
-    
-    def create_l2_controlled_close(epsilon: float = 0.1):
-        """
-        Create distribution that's close to uniform in L2 norm
-        by adding small controlled perturbations.
-        """
-        # Start with uniform
-        probs = np.ones(domain_size) / domain_size
-        
-        # Add small controlled perturbation
-        max_perturbation = epsilon / (4 * domain_size)
-        perturbation = np.random.uniform(-max_perturbation, max_perturbation, domain_size)
-        
-        # Ensure sum of perturbations is 0 to maintain total probability of 1
-        perturbation -= np.mean(perturbation)
-        
-        # Add perturbation and ensure non-negative
-        probs += perturbation
-        probs = np.maximum(probs, 0)
-        
-        return probs / np.sum(probs)
-    
-    def verify_l2_norm(probs, epsilon: float, name: str):
-        """
-        Verify L2 norm properties of distribution
-        """
-        l2_squared = np.sum(probs * probs)
-        uniform_l2 = 1.0 / domain_size
-        far_threshold = (1 + 4 * epsilon * epsilon) / domain_size
-        print(f"\nL2 norm verification for {name}:")
-        print(f"L2-squared norm: {l2_squared:.6f}")
-        print(f"Uniform L2-squared: {uniform_l2:.6f}")
-        print(f"Far threshold: {far_threshold:.6f}")
-        print(f"Min probability: {np.min(probs):.6f}")
-        print(f"Max probability: {np.max(probs):.6f}")
-    
-    # Generate distributions
-    distributions = {
-        "gaussian": create_gaussian_close(),  # Use close gaussian for base
-        "l2_far": create_l2_controlled_far(),
-        "l2_close": create_l2_controlled_close()
-    }
-    
-    # Save distributions and generate samples
-    for dist_name, base_probs in distributions.items():
-        verify_l2_norm(base_probs, epsilon=0.1, name=dist_name)
-        
-        # Save base distribution
-        D = {str(i+1): float(p) for i, p in enumerate(base_probs)}
+        D = {str(i+1): float(p) for i, p in enumerate(probs)}
         with open(f"./D/D_{dist_name}.json", "w") as f:
             json.dump(D, f)
-        
-        # Generate and save close samples (mixed with uniform)
-        close_samples = create_close_samples(base_probs)
-        with open(f"./X/D_{dist_name}_X_close.json", "w") as f:
-            json.dump({"samples": close_samples.tolist()}, f)
-        
-        # Generate and save far samples (using far distribution)
-        far_probs = create_l2_controlled_far(epsilon=0.2)
-        far_samples = np.random.choice(range(1, domain_size + 1),
-                                     size=sample_size,
-                                     p=far_probs)
 
-        # Save samples
+        # Close samples: 90% uniform, 10% probs
+        close_probs = 0.9*uniform + 0.1*probs
+        close_l1_distance = sum(abs(p - 1/n) for p in close_probs)
+        print(f"[DEBUG] Close distribution l1-distance: {close_l1_distance}")
+        close_samples = np.random.choice(range(1, n+1), size=sample_size, p=close_probs)
         with open(f"./X/D_{dist_name}_X_close.json", "w") as f:
             json.dump({"samples": close_samples.tolist()}, f)
-        
+
+        # Far samples: For demonstration, use the far_exact distribution from before:
+        far_probs = far_exact_distribution(n)
+        far_samples = np.random.choice(range(1, n+1), size=sample_size, p=far_probs)
         with open(f"./X/D_{dist_name}_X_far.json", "w") as f:
             json.dump({"samples": far_samples.tolist()}, f)
 
-def test_from_files(D_file: str, X_file: str, epsilon: float):
-    """
-    Test distributions loaded from files
-    """
-    with open(D_file) as f:
-        D = json.load(f)
-    with open(X_file) as f:
-        X = json.load(f)
-    
-    result = goldreich_test(D, X["samples"], epsilon)
-    print("Accept: X matches D" if result else "Reject: X is far from D")
+    def uniform_exact(n):
+        # Exactly uniform, each = 1/n
+        return np.ones(n)/n
 
+    def far_exact_distribution(n):
+        """
+        A far-from-uniform distribution:
+        - First element: 0.5 probability
+        - Remaining n-1 elements share 0.5 equally, each = 0.5/(n-1)
+        All are rational multiples of 1/n (since 0.5 = (n/2)* (1/n) if n divides nicely).
+        """
+        dist = np.zeros(n)
+        dist[0] = 0.5
+        dist[1:] = 0.5/(n-1)
+        return dist
 
-def run_tests(epsilon: float = 0.05):
-    """
-    Run tests with more detailed output
-    """
-    successes = 0
-    total = 0
-    
-    for dist_name in ["gaussian", "powerlaw", "bimodal", "noisy_uniform", "step"]:
-        print(f"\nTesting {dist_name} distribution:")
+    def bimodal_distribution(n):
+        """
+        Bimodal distribution:
+        - First half of the domain: each element gets probability = 1/(2n)
+        - Second half of the domain: each element gets probability = 3/(2n)
         
-        print("Testing far distribution:")
-        far_result = test_from_files(f"./D/D_{dist_name}.json", 
-                                   f"./X/D_{dist_name}_X_far.json", epsilon)
-        if not far_result:  # Should reject
-            successes += 1
-        total += 1
-            
-        print("\nTesting close distribution:")
-        close_result = test_from_files(f"./D/D_{dist_name}.json", 
-                                     f"./X/D_{dist_name}_X_close.json", epsilon)
-        if close_result:  # Should accept
-            successes += 1
-        total += 1
-            
-        print("-" * 50)
-    
-    print(f"\nOverall Success Rate: {successes}/{total} tests passed")
+        Check sum:
+        First half sum: (n/2)* (1/(2n)) = 1/4
+        Second half sum: (n/2)* (3/(2n)) = 3/4
+        Total = 1/4 + 3/4 = 1
+
+        We now have a distribution that puts less mass on the first half and more on the second half,
+        clearly not uniform but still nicely rational.
+        """
+        dist = np.zeros(n)
+        half = n//2
+        dist[:half] = 1/(2*n)   # Low probability block
+        dist[half:] = 3/(2*n)   # High probability block
+        return dist
+
+    def step_distribution(n):
+        """
+        Step distribution with 4 equal blocks of n/4 each:
+        
+        Block 1: each = 1/(2n)
+        Block 2: each = 1/(2n)
+        Block 3: each = 3/(2n)
+        Block 4: each = 3/(2n)
+
+        Check sum:
+        Each block has n/4 elements.
+        Block 1 sum: (n/4)* (1/(2n)) = 1/8
+        Block 2 sum = 1/8 total so far=1/4
+        Block 3 sum: (n/4)*(3/(2n))=3/8 total so far=1/4+3/8=2/8+3/8=5/8
+        Block 4 sum: 3/8 total=5/8+3/8=8/8=1
+
+        This creates a "step" pattern: first half is lower probability, second half is higher.
+        """
+        dist = np.zeros(n)
+        quarter = n//4
+        dist[0:quarter] = 1/(2*n)
+        dist[quarter:2*quarter] = 1/(2*n)
+        dist[2*quarter:3*quarter] = 3/(2*n)
+        dist[3*quarter:4*quarter] = 3/(2*n)
+        return dist
+
+    # Create distributions
+    uniform_dist = uniform_exact(n)
+    bimodal_dist = bimodal_distribution(n)
+    step_dist = step_distribution(n)
+    far_dist = far_exact_distribution(n)  # already defined
+    # Also can re-use the close pattern by making tiny rational shifts:
+    # For variety, let's just use these three main ones.
+
+    # Save distributions and generate samples
+    print("Creating uniform_exact distribution")
+    save_distribution_and_samples("uniform_exact", uniform_dist)
+
+    print("Creating bimodal distribution")
+    save_distribution_and_samples("bimodal", bimodal_dist)
+
+    print("Creating step distribution")
+    save_distribution_and_samples("step", step_dist)
+
+    print("Creating far_exact distribution")
+    save_distribution_and_samples("far_exact", far_dist)
 
 if __name__ == "__main__":
-    print("Generating test distributions...")
-    generate_test_distributions(domain_size=1000, sample_size=100000)
+    generate_nice_distributions(domain_size=1000, sample_size=100000)

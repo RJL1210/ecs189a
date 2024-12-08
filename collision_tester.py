@@ -4,6 +4,10 @@ from collections import Counter
 from typing import List
 from goldreich import collision_tester
 
+"""
+JUST A HELPER FUNCTION TO TEST THE COLLISION TESTER
+"""
+
 def test_collision_tester():
     """
     Test collision tester directly on our generated distributions
