@@ -69,7 +69,7 @@ def test_on_files(D_file: str, X_file: str, epsilon: float = 0.1) -> bool:
     
     return identity_tester(D, X["samples"], epsilon)
 
-def run_all_tests(distributions: List[str] = ["gaussian", "l2_far", "l2_close"], 
+def run_all_tests(distributions: List[str] = ["bimodal", "periodic", "step", "uniform_exact"], 
                   epsilon: float = 0.1):
     """Run tests on all distributions"""
     for dist in distributions:
