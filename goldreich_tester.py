@@ -2,6 +2,7 @@ import math
 from collections import Counter
 from typing import Dict, List, Tuple
 from goldreich import goldreich_reduction
+from visualize_goldreich import visualize_batch_results
 
 def lecture11_collision_tester(samples: List[int], m: int, epsilon: float, delta: float = 0.05) -> bool:
     """
@@ -145,3 +146,16 @@ def batch_test(test_dir: str, sample_dir: str, epsilon: float = 0.1):
             print(f"Support size: {stats['avg_support_size']:.1f} ({stats['min_support']}-{stats['max_support']})")
     
     return results
+
+
+if __name__ == "__main__":
+    test_dir = './D'
+    sample_dir = './X'
+    epsilon = 0.1
+    
+    # Run batch tests
+    results = batch_test(test_dir, sample_dir, epsilon)
+    
+    # Visualize results
+    #WILL GENERATE LOT OF IMAGES
+    #visualize_batch_results(test_dir, sample_dir, epsilon)

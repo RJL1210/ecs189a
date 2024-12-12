@@ -5,12 +5,6 @@ import json
 def uniform_exact(n):
     return np.ones(n) / n
 
-def far_exact_distribution(n):
-    dist = np.zeros(n)
-    dist[0] = 0.7
-    dist[1:] = 0.3 / (n - 1)
-    return dist
-
 def bimodal_distribution(n, peak1=0.3, peak2=0.7, std=0.1):
     x = np.linspace(0, 1, n)
     dist1 = np.exp(-0.5 * ((x - peak1) / std)**2)
@@ -38,7 +32,7 @@ def uniform_skew_distribution(n):
     dist = np.linspace(1, n, n)
     return dist / np.sum(dist)
 
-def generate_nice_distributions(domain_size=500, sample_size=3000000):
+def generate_nice_distributions(domain_size=800, sample_size=1000000):
     os.makedirs("./D", exist_ok=True)
     os.makedirs("./X", exist_ok=True)
 
@@ -47,7 +41,6 @@ def generate_nice_distributions(domain_size=500, sample_size=3000000):
     
     distributions = {
         'uniform_exact': uniform,
-        'far_exact': far_exact_distribution(n),
         'bimodal': bimodal_distribution(n),
         'gaussian': gaussian_distribution(n),
         'exponential': exponential_distribution(n),
@@ -61,7 +54,7 @@ def generate_nice_distributions(domain_size=500, sample_size=3000000):
             json.dump(D, f)
         
         # Generate close samples (90-10 mix with uniform)
-        close_probs = 0.9 * uniform + 0.1 * dist
+        close_probs = 0.95 * uniform + 0.05 * dist
         close_probs /= np.sum(close_probs)
         close_samples = np.random.choice(range(1, n+1), size=sample_size, p=close_probs)
         with open(f"./X/D_{name}_X_close.json", "w") as f:
@@ -74,4 +67,4 @@ def generate_nice_distributions(domain_size=500, sample_size=3000000):
             json.dump({"samples": far_samples.tolist()}, f)
 
 if __name__ == "__main__":
-    generate_nice_distributions(domain_size=750, sample_size=3000000)
+    generate_nice_distributions(domain_size = 750, sample_size = 100000)

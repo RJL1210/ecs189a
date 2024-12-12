@@ -1,5 +1,0 @@
-Distribution stats:
-Original range: 0.000000 to 0.003218
-Final range: 0.000000 to 0.000606
-Collision rate: 0.000242
-Sample sizes - Original: 43817, Mapped: 42918

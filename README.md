@@ -1,101 +1,137 @@
-# Goldreich Distribution Tester
+# Distribution Testing Toolkit
 
-This project implements a uniformity testing algorithm based on Goldreich's reduction for distribution testing. The goal is to determine whether a given distribution is close to uniform or far from it, using a sublinear number of samples.
+## Overview
 
-The implementation closely follows Goldreich's reduction framework, applying quantization, mapping, and collision-based testing to evaluate the uniformity of a distribution. By leveraging this approach, the project provides an efficient solution for analyzing large distributions without requiring the entire dataset.
+This toolkit provides a set of Python scripts for testing the uniformity of discrete probability distributions using two different statistical testing methods:
 
-## Introduction
+1. Identity Tester (based on Algorithm 12.1)
+2. Goldreich Collision Tester
 
-Goldreich's uniformity testing framework is a sublinear algorithmic approach to determining whether a given distribution is uniform or far from it in Total Variation Distance (TVD). This project simulates multiple synthetic distributions, applies reduction techniques, and visualizes results to validate the tester's effectiveness.
+## Prerequisites
 
-## Features
+- Python 3.7+
+- NumPy
+- Matplotlib (for visualization)
 
-- Generates a variety of synthetic distributions.
-- Reduces distributions using Goldreich's quantization and mapping algorithms.
-- Tests proximity to uniformity using collision statistics.
-- Visualizes results to analyze distribution transformations.
+## Installation
 
-## Project Structure
+1. Clone the repository
+2. Install required dependencies:
+   ```
+   pip install numpy matplotlib
+   ```
 
-```plaintext
-├── D/                                      # Generated target distributions (JSON)
-├── X/                                      # Generated sample sets (JSON)
-├── goldreich.py                            # Core implementation of reduction algorithms
-├── goldreich_tester.py                     # Uniformity testing logic (From lecture 11, algorithm 11.3)
-├── generate_distributions_and_samples.py   # Script to generate distributions
-├── run_goldreich.py                        # Main script for executing tests
-├── visualization.py                        # Visualization of distributions
-├── README.md                               # Project documentation
-```
+## Usage Workflow
 
-## Usage
+### 1. Generate Distributions and Samples
 
-This project includes scripts to generate distributions, test them for uniformity, and visualize the results. Below are the steps to use these scripts effectively.
-
-### Generating Distributions
-
-To create target distributions and sample sets for testing, run:
+First, run `generate_distributions_and_samples.py` to create test distributions and corresponding sample sets:
 
 ```bash
 python generate_distributions_and_samples.py
 ```
 
-This script generates:
+This script does the following:
 
-- Target distributions: Stored in the D/ directory.
-- Sample sets: Stored in the X/ directory.
-- Each distribution type has two sample sets:
+- Creates a `./D` directory with JSON files representing different probability distributions
+- Creates an `./X` directory with sample sets for each distribution
+- Generates two types of samples for each distribution:
+  - `close` samples: Slightly mixed with uniform distribution
+  - `far` samples: Drawn directly from the target distribution
 
-Close samples: A 90-10 blend of the target distribution and uniform distribution.
-Far samples: Samples drawn entirely from the target distribution.
+Distribution types generated:
 
-### Running Tests
+- Uniform
+- Bimodal
+- Gaussian
+- Exponential
+- Uniform Skew
 
-Once the distributions and samples are ready, you can run the Goldreich uniformity tester:
+### 2. Run Tests and Generate Visualizations
+
+Use `compare.py` to run both the Identity and Goldreich testers and generate visualizations:
 
 ```bash
-python run_goldreich.py
+python compare.py
 ```
 
 This script will:
 
-- Load distributions and samples.
-- Apply the Goldreich reduction algorithm.
-- Test for uniformity using collision rates.
-- Output decisions for each distribution (Uniform or Not Uniform) with statistics like collision rates and support size.
+- Load distributions from `./D`
+- Load sample sets from `./X`
+- Run both Identity and Goldreich testers
+- Generate visualizations for:
+  - Goldreich tester batch results
+  - Identity tester batch results
+- Print detailed test results for each distribution and sample type
 
-#### Example Test Output
+## Understanding the Test Methods
 
-```text
-Testing D_bimodal (close):
-Decision: Uniform
-Votes: 11/11 (100.00%)
-Avg collision rate: 0.000230
-Support size: 4498.9 (4496-4500)
+### Identity Tester (`identity_tester.py`)
 
-Testing D_bimodal (far):
-Decision: Not Uniform
-Votes: 0/11 (0.00%)
-Avg collision rate: 0.000268
-Support size: 4483.3 (4479-4489)
-```
+- Uses a statistical approach based on sample frequency
+- Computes a Z-statistic to determine distribution uniformity
+- Outputs decision (Accept/Reject) and detailed statistics
 
-### Visualizing Results
+### Goldreich Tester (`goldreich_tester.py`)
 
-To visualize how distributions change after applying the Goldreich reduction:
+- Uses a collision-based method
+- Applies several reduction techniques to test uniformity
+- Uses majority voting across multiple trials
+- Provides collision rate and support size statistics
+
+## Parameters
+
+Key parameters you can adjust:
+
+- `epsilon`: Proximity parameter (default: 0.1)
+  - Controls the sensitivity of the uniformity test
+- `domain_size`: Size of the distribution (default: 800)
+- `sample_size`: Number of samples to generate (default: 3,000,000)
+
+## Customization
+
+You can modify `generate_distributions_and_samples.py` to:
+
+- Add new distribution types
+- Change distribution parameters
+- Adjust sample generation methods
+
+## Example Workflow
 
 ```bash
-python visualization.py
+# Step 1: Generate distributions and samples
+python generate_distributions_and_samples.py
+
+# Step 2: Run tests and generate visualizations
+python compare.py
 ```
 
-This script generates visualizations for:
+## Output
 
-Original Distribution: The target distribution before sampling or reduction.
-Final Distribution: The reduced distribution after applying Goldreich's algorithm.
-Comparison: Overlays the original and final distributions for direct comparison.
-Output Location
-Generated visualizations are saved in the goldreich_visual/ directory:
+The script will generate:
 
-original_distribution.png: Shows the original distribution.
-final_distribution.png: Shows the reduced distribution.
-comparison_distribution.png: Overlays the original and reduced distributions
+- Console output with test results for each distribution
+- Visualization plots in the current directory
+  - Goldreich tester results
+  - Identity tester results
+
+## Notes
+
+- Not all distributions will look perfectly uniform
+- The testers provide probabilistic guarantees
+- Adjust `epsilon` to control test sensitivity
+
+## Troubleshooting
+
+- Ensure all dependencies are installed
+- Check Python version compatibility
+- Verify input JSON files are correctly formatted
+
+## License
+
+[Add your license information here]
+
+## Contributing
+
+[Add contribution guidelines here]
