@@ -3,53 +3,67 @@ import json
 from identity_tester import identity_tester
 from goldreich_tester import majority_rules_test
 from visualize_goldreich import visualize_batch_results  
-from visualize_identity import batch_visualize_identity_tests
+from visualize_identity import visualize_modified_identity_test
 
-def batch_compare_testers(test_dir: str, sample_dir: str, epsilon: float = 0.1):
-    """Run both testers with comparable output format"""
-    from goldreich_tester import majority_rules_test
-    
+def batch_compare_testers(test_dir: str, sample_dir: str, epsilon: float = 0.1, num_repetitions: int = 5):
+    """Run both testers with comparable output format and majority rule decision"""
     for dist_file in sorted(os.listdir(test_dir)):
         if not dist_file.endswith('.json'):
             continue
-            
+
         print(f"\nTesting {os.path.splitext(dist_file)[0]}:")
         with open(os.path.join(test_dir, dist_file)) as f:
             q = json.load(f)
-        
+
         for sample_type in ['close', 'far']:
             with open(os.path.join(sample_dir, f"{os.path.splitext(dist_file)[0]}_X_{sample_type}.json")) as f:
                 samples = json.load(f)["samples"]
-            
+
             print(f"\n{sample_type.upper()} samples:")
-            
-            # Identity tester
-            
-            id_decision, id_stats = identity_tester(q, samples, epsilon)
+
+            # Identity Tester with majority rule
+            id_accept_count = 0
+            for _ in range(num_repetitions):
+                id_decision, id_stats = identity_tester(q, samples, epsilon)
+                id_accept_count += int(id_decision)
+
+            final_id_decision = id_accept_count > (num_repetitions / 2)
             print("Identity Tester:")
-            print(f"  Decision: {'Accept' if id_decision else 'Reject'}")
-            print(f"  Z statistic: {id_stats['Z_statistic']:.6f}")
-            print(f"  Threshold: {id_stats['threshold']:.6f}")
-            print(f"  Sample size: {id_stats['sample_size']} (expected: {id_stats['expected_samples']})")
-            print(f"  Support size: {id_stats['empirical_support']:.1f}/{id_stats['set_A_size']} (expected: {id_stats['expected_support']:.1f})")
-            print(f"  TVD estimate: {id_stats['tvd_estimate']:.6f}")
-            
-            
-            # Goldreich tester
-            
-            gold_decision, gold_stats = majority_rules_test(q, samples, epsilon)
-            
-            print("\nGoldreich Tester:")
-            print(f"  Decision: {'Accept' if gold_decision else 'Reject'}")
-            print(f"  Votes: {gold_stats['positive_votes']}/{gold_stats['total_trials']}")
-            print(f"  Collision rate: {gold_stats['avg_collision_rate']:.6f}")
-            print(f"  Support size: {gold_stats['avg_support_size']:.1f}")
-            
+            print(f"  Final Decision: {'Accept' if final_id_decision else 'Reject'}")
+            print(f"  Acceptance Count: {id_accept_count}/{num_repetitions}")
+            print(f" Z_statistic: {id_stats['Z_statistic']}")
+            print(f" threshold: {id_stats['threshold']}")
+            print(f" sample_size: {id_stats['sample_size']}")
+
+            # Goldreich Tester with majority rule
+            gold_accept_count = 0
+            for _ in range(num_repetitions):
+                gold_decision, gold_stats = majority_rules_test(q, samples, epsilon)
+                gold_accept_count += int(gold_decision)
+
+            final_gold_decision = gold_accept_count > (num_repetitions / 2)
+            print("Goldreich Tester:")
+            print(f"  Final Decision: {'Accept' if final_gold_decision else 'Reject'}")
+            print(f"  Acceptance Count: {gold_accept_count}/{num_repetitions}")
+            print(f" gold_stats: {gold_stats}")
 
 if __name__ == "__main__":
-    # Run all tests with 5 repetitions per test and plot for the first run
-    batch_compare_testers("D", "X", epsilon=0.1)
+    # Run all tests with 5 repetitions per test and visualize results
+    batch_compare_testers("D", "X", epsilon=0.1, num_repetitions=1001)
 
-    # Run both visualizations
-    #visualize_batch_results("D", "X", epsilon=0.1)
-    #batch_visualize_identity_tests("D", "X", epsilon=0.1)
+    # Run updated visualizations for identity tests
+    
+    """
+    for dist_file in os.listdir("D"):
+        if dist_file.endswith('.json'):
+            with open(os.path.join("D", dist_file)) as f:
+                q = json.load(f)
+
+            for sample_type in ['close', 'far']:
+                with open(os.path.join("X", f"{os.path.splitext(dist_file)[0]}_X_{sample_type}.json")) as f:
+                    samples = json.load(f)["samples"]
+
+                visualize_modified_identity_test(q, samples, 0.1, f"{os.path.splitext(dist_file)[0]}_{sample_type}")
+    """
+                
+   #visualize_batch_results("D", "X", epsilon=0.1)

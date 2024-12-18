@@ -4,104 +4,82 @@ from typing import Dict, List, Tuple
 from goldreich import goldreich_reduction
 from visualize_goldreich import visualize_batch_results
 
-def lecture11_collision_tester(samples: List[int], m: int, epsilon: float, delta: float = 0.05) -> bool:
+DEBUG = False
+
+from typing import List
+from collections import Counter
+
+def lecture11_collision_tester(samples: List[int], n: int, epsilon: float) -> bool:
     """
-    Modified collision tester using Bernstein's inequality for the threshold.
+    Implements Algorithm 11.3 from lecture notes to test if a distribution is uniform.
     
     Args:
-        samples: List of sample values
-        m: Domain size
-        epsilon: Proximity parameter
-        delta: Confidence parameter (default 0.05 for 95% confidence)
+        samples: List of samples from the distribution (values in [n])
+        n: Size of the domain [n]
+        epsilon: Distance parameter
+        
+    Returns:
+        bool: True if distribution appears uniform, False otherwise
     """
-    # Filter valid samples
-    filtered = [s for s in samples if 1 <= s <= m]
-    n = len(filtered)
+    # Validate samples are in domain [n]
+    filtered = [s for s in samples if 1 <= s <= n]
+    m = len(filtered)
     
-    if n < 2:
+    if m < 2:
         return True
     
-    # Count collisions
+    # Count frequencies and compute collisions
     freq = Counter(filtered)
     collision_count = sum(c * (c-1) // 2 for c in freq.values())
-    M = (n * (n-1)) // 2  # number of pairs
+    total_pairs = (m * (m-1)) // 2
     
-    if M == 0:
+    if total_pairs == 0:
         return True
     
-    # Calculate collision rate
-    C = collision_count / M
+    # Compute C = number of collisions divided by (m choose 2)
+    C = collision_count / total_pairs
     
-    # Base threshold for uniformity
-    base_threshold = (1 + epsilon**2) / m
+    # Threshold from Algorithm 11.3
+    threshold = (1 + epsilon**2) / n
+
+    if DEBUG:
+        print(f"[collision_tester] Stats:")
+        print(f"  Sample size: {n}")
+        print(f"  Collision rate (C): {C:.6f}")
+        print(f"  Threshold: {threshold:.6f}")
     
-    # Bernstein bound
-    # Use base_threshold as estimate of variance (since collisions are rare)
-    variance = base_threshold
-    L = 1.0  # maximum value of |X - μ|
-    
-    # Solve for t in Bernstein's inequality:
-    # 2exp(-t²/(2σ² + 2Lt/3)) = delta
-    # This is a cubic equation, we'll use numerical solution
-    def bernstein_bound(t):
-        return 2 * math.exp(-M * t**2 / (2 * variance + 2 * L * t/3)) - delta
-    
-    # Binary search for t
-    left, right = 0, 1
-    for _ in range(16):  # 20 iterations should give enough precision
-        t = (left + right) / 2
-        if bernstein_bound(t) > 0:
-            left = t
-        else:
-            right = t
-    
-    bernstein_term = right
-    threshold = base_threshold + bernstein_term
-    
+    # Accept if C ≤ (1+ε²)/n
     return C <= threshold
-
-
+    
+    
 def majority_rules_test(D: Dict[str, float], p_samples: List[int], 
-                       epsilon: float, num_trials: int = 11) -> Tuple[bool, dict]:
-    results = []
-    collision_rates = []
-    support_sizes = []
+                       epsilon: float, num_trials: int = 1) -> Tuple[bool, dict]:
+    """
+    Single trial test with basic statistics.
+    """
+    mapped_samples, m = goldreich_reduction(D, p_samples, epsilon)
+    result = lecture11_collision_tester(mapped_samples, m, epsilon/3)
     
-    n = len(D)
-    required_samples = int(16 * math.sqrt(n) / epsilon**2)
-    p_samples = p_samples[:required_samples]
-    
-    for _ in range(num_trials):
-        mapped_samples, m = goldreich_reduction(D, p_samples, epsilon)
-        result = lecture11_collision_tester(mapped_samples, m, epsilon/3)
-        results.append(result)
-        
-        # Calculate statistics
-        valid = [s for s in mapped_samples if 1 <= s <= m]
-        freq = Counter(valid)
-        collisions = sum(c * (c-1) // 2 for c in freq.values())
-        total = len(valid) * (len(valid) - 1) // 2
-        rate = collisions / total if total > 0 else 0
-        collision_rates.append(rate)
-        
-        support = len(set(valid))
-        support_sizes.append(support)
-    
-    # Calculate majority decision
-    positive_votes = sum(results)
-    majority_decision = positive_votes > num_trials // 2
+    # Calculate basic statistics
+    valid = [s for s in mapped_samples if 1 <= s <= m]
+    freq = Counter(valid)
+    collisions = sum(c * (c-1) // 2 for c in freq.values())
+    total = len(valid) * (len(valid) - 1) // 2
+    collision_rate = collisions / total if total > 0 else 0
     
     stats = {
-        'positive_votes': positive_votes,
-        'total_trials': num_trials,
-        'vote_ratio': positive_votes / num_trials,
-        'avg_collision_rate': sum(collision_rates) / len(collision_rates),
-        'avg_support_size': sum(support_sizes) / len(support_sizes),
-        'min_support': min(support_sizes),
-        'max_support': max(support_sizes)
+        'positive_votes': 1 if result else 0,
+        'total_trials': 1,
+        'vote_ratio': 1.0 if result else 0.0,
+        'avg_collision_rate': collision_rate,
+        'avg_support_size': len(freq),
+        'min_support': len(freq),
+        'max_support': len(freq),
+        'expected_collision_rate': 1.0/m,
+        'relative_collision_rate': collision_rate * m
     }
     
-    return majority_decision, stats
+    return result, stats
 
 def batch_test(test_dir: str, sample_dir: str, epsilon: float = 0.1):
     """

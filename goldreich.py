@@ -2,6 +2,7 @@ import random
 import math
 from collections import Counter, defaultdict
 from typing import Dict, List, Tuple
+import numpy as np
 
 
 def apply_uniform_filter(p_samples: List[int], n: int) -> List[int]:
@@ -32,6 +33,7 @@ def quantize_distribution(q_prime: Dict[str, float], gamma: float = 1/6) -> Dict
         total_mass += q_double_prime[str(i)]
     
     # Distribute remaining mass to largest remainders
+    
     remaining = 1.0 - total_mass
     if remaining > 0:
         remainders = [(i, q_prime[str(i)] * n / gamma - math.floor(q_prime[str(i)] * n / gamma)) 
@@ -43,6 +45,7 @@ def quantize_distribution(q_prime: Dict[str, float], gamma: float = 1/6) -> Dict
             if i < len(remainders):
                 idx = str(remainders[i][0])
                 q_double_prime[idx] += gamma / n
+    
     
     return q_double_prime
 
@@ -84,55 +87,60 @@ def algorithm_8(D: Dict[str, float], p_samples: List[int],
     return q_double_prime, p_double_prime
 
 def algorithm_5(q_double_prime: Dict[str, float], 
-                  p_double_prime_samples: List[int], 
-                  gamma: float = 1/6) -> Tuple[List[int], int]:
+                p_double_prime_samples: List[int], 
+                gamma: float = 1/6) -> Tuple[List[int], int]:
     n = len(q_double_prime)
-    m = int(n / gamma) 
+    m = int(n / gamma)
     
-    # Ensure we use all m positions
-    m_i = [0] * n
-    positions_left = m
+    m_i = {}
+    total_allocated = 0
     
-    # First allocate minimum positions to each used index
-    used_indices = set(p_double_prime_samples)
-    min_positions = positions_left // len(used_indices)
-    for i in used_indices:
-        m_i[i-1] = min_positions
-        positions_left -= min_positions
+    for i in range(1, n+1):
+        str_i = str(i)
+        m_i[str_i] = int(q_double_prime[str_i] * m)
+        total_allocated += m_i[str_i]
     
-    # Distribute remaining based on q''
-    if positions_left > 0:
-        weights = [q_double_prime[str(i)] for i in range(1, n+1)]
-        total_weight = sum(weights)
-        for i in range(n):
-            if i+1 in used_indices:
-                additional = int((weights[i]/total_weight) * positions_left)
-                m_i[i] += additional
-                positions_left -= additional
+    # Distribute remaining positions
+    remaining = m - total_allocated
+    if remaining > 0:
+        fractional_parts = [(str(i), (q_double_prime[str(i)] * m) % 1) 
+                           for i in range(1, n+1)]
+        fractional_parts.sort(key=lambda x: x[1], reverse=True)
+        
+        # Only distribute up to number of available positions
+        for i in range(min(remaining, len(fractional_parts))):
+            m_i[fractional_parts[i][0]] += 1
     
-    # Map samples using full range
-    ranges = []
-    current = 1
-    for size in m_i:
-        if size > 0:
-            ranges.append((current, current + size - 1))
-            current += size
-        else:
-            ranges.append((0, 0))
+    # Compute prefix sums for mapping
+    prefix_sums = [0]
+    curr_sum = 0
+    for i in range(1, n+1):
+        curr_sum += m_i[str(i)]
+        prefix_sums.append(curr_sum)
     
+    # Map samples
     mapped_samples = []
     for s in p_double_prime_samples:
-        start, end = ranges[s-1]
-        if start > 0:
-            mapped = random.randint(start, end)
-            mapped_samples.append(mapped)
-            
+        str_s = str(s)
+        if str_s in m_i and m_i[str_s] > 0:
+            # Map to a random position in the assigned range
+            start = prefix_sums[s-1] + 1
+            end = prefix_sums[s]
+            if start <= end:
+                mapped_value = random.randint(start, end)
+                if mapped_value <= m:  # Ensure we stay within [m]
+                    mapped_samples.append(mapped_value)
+    
+    if len(mapped_samples) == 0:
+        # If no samples were mapped, this is likely not uniform
+        return mapped_samples, m
+        
     return mapped_samples, m
 
 def goldreich_reduction(D: Dict[str, float], p_samples: List[int], 
                        epsilon: float, gamma: float = 1/6) -> bool:
     n = len(D)
-    required = int(16 * math.sqrt(n) / epsilon**2)
+    required = int(np.ceil(np.sqrt(n) / (epsilon * epsilon)))
     p_samples = p_samples[:required]
     
     q_double_prime, p_double_prime = algorithm_8(D, p_samples, gamma)
