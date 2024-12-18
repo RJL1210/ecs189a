@@ -18,23 +18,17 @@ def mix_distribution_with_uniform(D: Dict[str, float]) -> Dict[str, float]:
 
 def quantize_distribution(q_prime: Dict[str, float], gamma: float = 1/6) -> Dict[str, float]:
     """
-    Create m-grained distribution using floor and redistribution.
-    Simplified as per paper's description.
+    Create m-grained distribution using floor only, no normalization
     """
     n = len(q_prime)
-    
-    # First pass: floor values
     q_double_prime = {}
-    total_mass = 0.0
     
     for i in range(1, n+1):
         m_i = math.floor(q_prime[str(i)] * n / gamma)
         q_double_prime[str(i)] = (m_i * gamma) / n
-        total_mass += q_double_prime[str(i)]
     
     # Distribute remaining mass to largest remainders
-    
-    remaining = 1.0 - total_mass
+    remaining = 1.0 - sum(q_double_prime.values())
     if remaining > 0:
         remainders = [(i, q_prime[str(i)] * n / gamma - math.floor(q_prime[str(i)] * n / gamma)) 
                      for i in range(1, n+1)]
@@ -45,7 +39,6 @@ def quantize_distribution(q_prime: Dict[str, float], gamma: float = 1/6) -> Dict
             if i < len(remainders):
                 idx = str(remainders[i][0])
                 q_double_prime[idx] += gamma / n
-    
     
     return q_double_prime
 
@@ -89,9 +82,13 @@ def algorithm_8(D: Dict[str, float], p_samples: List[int],
 def algorithm_5(q_double_prime: Dict[str, float], 
                 p_double_prime_samples: List[int], 
                 gamma: float = 1/6) -> Tuple[List[int], int]:
+    """
+    Algorithm 5 without normalization
+    """
     n = len(q_double_prime)
     m = int(n / gamma)
     
+    # Compute m_i values
     m_i = {}
     total_allocated = 0
     
@@ -107,35 +104,29 @@ def algorithm_5(q_double_prime: Dict[str, float],
                            for i in range(1, n+1)]
         fractional_parts.sort(key=lambda x: x[1], reverse=True)
         
-        # Only distribute up to number of available positions
         for i in range(min(remaining, len(fractional_parts))):
             m_i[fractional_parts[i][0]] += 1
     
-    # Compute prefix sums for mapping
+    # Map samples
+    mapped_samples = []
     prefix_sums = [0]
     curr_sum = 0
     for i in range(1, n+1):
         curr_sum += m_i[str(i)]
         prefix_sums.append(curr_sum)
     
-    # Map samples
-    mapped_samples = []
     for s in p_double_prime_samples:
         str_s = str(s)
         if str_s in m_i and m_i[str_s] > 0:
-            # Map to a random position in the assigned range
             start = prefix_sums[s-1] + 1
             end = prefix_sums[s]
             if start <= end:
                 mapped_value = random.randint(start, end)
-                if mapped_value <= m:  # Ensure we stay within [m]
+                if mapped_value <= m:
                     mapped_samples.append(mapped_value)
     
-    if len(mapped_samples) == 0:
-        # If no samples were mapped, this is likely not uniform
-        return mapped_samples, m
-        
     return mapped_samples, m
+
 
 def goldreich_reduction(D: Dict[str, float], p_samples: List[int], 
                        epsilon: float, gamma: float = 1/6) -> bool:
