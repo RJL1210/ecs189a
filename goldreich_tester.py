@@ -1,4 +1,5 @@
 import math
+import numpy as np
 from collections import Counter
 from typing import Dict, List, Tuple
 from goldreich import goldreich_reduction
@@ -10,25 +11,17 @@ from typing import List
 from collections import Counter
 
 def lecture11_collision_tester(samples: List[int], n: int, epsilon: float) -> bool:
-    """
-    Implements Algorithm 11.3 from lecture notes to test if a distribution is uniform.
+    # Apply sample complexity limit here
+    required = int(math.sqrt(n) / (epsilon * epsilon))
+    samples = samples[:required]  # Now we limit samples just for collision testing
     
-    Args:
-        samples: List of samples from the distribution (values in [n])
-        n: Size of the domain [n]
-        epsilon: Distance parameter
-        
-    Returns:
-        bool: True if distribution appears uniform, False otherwise
-    """
-    # Validate samples are in domain [n]
+    # Rest of collision test remains the same
     filtered = [s for s in samples if 1 <= s <= n]
     m = len(filtered)
     
     if m < 2:
         return True
     
-    # Count frequencies and compute collisions
     freq = Counter(filtered)
     collision_count = sum(c * (c-1) // 2 for c in freq.values())
     total_pairs = (m * (m-1)) // 2
@@ -36,20 +29,12 @@ def lecture11_collision_tester(samples: List[int], n: int, epsilon: float) -> bo
     if total_pairs == 0:
         return True
     
-    # Compute C = number of collisions divided by (m choose 2)
     C = collision_count / total_pairs
+    expected_rate = 1.0/n
+    relative_rate = C/expected_rate
     
-    # Threshold from Algorithm 11.3
-    threshold = (1 + epsilon**2) / n
-
-    if DEBUG:
-        print(f"[collision_tester] Stats:")
-        print(f"  Sample size: {n}")
-        print(f"  Collision rate (C): {C:.6f}")
-        print(f"  Threshold: {threshold:.6f}")
-    
-    # Accept if C ≤ (1+ε²)/n
-    return C <= threshold
+    tolerance = 1 + epsilon
+    return relative_rate <= tolerance
     
     
 def majority_rules_test(D: Dict[str, float], p_samples: List[int], 
@@ -57,6 +42,13 @@ def majority_rules_test(D: Dict[str, float], p_samples: List[int],
     """
     Single trial test with basic statistics.
     """
+    n = len(D)
+    sample_complexity = int(2 * np.ceil(np.sqrt(n) / (epsilon * epsilon)))
+    if len(p_samples) <= sample_complexity:
+        raise ValueError("Sample size too small")
+    
+    p_samples = p_samples[:sample_complexity] #estimate amount of required samples before goldreichs since itll cut about 50% of the samples
+    
     mapped_samples, m = goldreich_reduction(D, p_samples, epsilon)
     result = lecture11_collision_tester(mapped_samples, m, epsilon/3)
     

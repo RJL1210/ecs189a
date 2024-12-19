@@ -130,10 +130,8 @@ def algorithm_5(q_double_prime: Dict[str, float],
 
 def goldreich_reduction(D: Dict[str, float], p_samples: List[int], 
                        epsilon: float, gamma: float = 1/6) -> bool:
-    n = len(D)
-    required = int(np.ceil(np.sqrt(n) / (epsilon * epsilon)))
-    p_samples = p_samples[:required]
-    
+
+    # Filter, mix, quantize, transform
     q_double_prime, p_double_prime = algorithm_8(D, p_samples, gamma)
     
     # Run Algorithm 5 - maps to [m]

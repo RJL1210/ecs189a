@@ -143,7 +143,7 @@ def generate_nice_distributions(domain_size=800, sample_size=1000000, epsilon=0.
     
     results = {}
     for name, q in distributions.items():
-        print(f"\nProcessing {name} distribution...")
+        #print(f"\nProcessing {name} distribution...")
         
         # Store target distribution
         D = {str(i+1): float(p) for i, p in enumerate(q)}
@@ -156,8 +156,10 @@ def generate_nice_distributions(domain_size=800, sample_size=1000000, epsilon=0.
             # Verify TVD
             close_tvd = tvd(p_close, q)
             far_tvd = tvd(p_far, q)
+            """
             print(f"Close TVD: {close_tvd:.6f}")
             print(f"Far TVD: {far_tvd:.6f}")
+            """
             
             # Generate samples
             close_samples = np.random.choice(range(1, n+1), size=sample_size, p=p_close)
@@ -182,5 +184,5 @@ def generate_nice_distributions(domain_size=800, sample_size=1000000, epsilon=0.
 if __name__ == "__main__":
     domain_size = 100
     epsilon = 0.1
-    sample_size = int(np.ceil(np.sqrt(domain_size) / (epsilon * epsilon)))
+    sample_size = 3 * int(np.ceil(np.sqrt(domain_size) / (epsilon * epsilon)))
     generate_nice_distributions(domain_size=domain_size, sample_size=sample_size, epsilon=epsilon)
